@@ -268,6 +268,14 @@ action.
   which its repositories no longer appear.
 - **FR-017**: The application MUST remain responsive during scanning and
   refreshing.
+- **FR-018**: The application MUST handle repositories with no remote, no
+  upstream, or that have been deleted on disk without crashing, showing the
+  affected values as unavailable.
+- **FR-019**: The application MUST report clearly when the system git client is
+  unavailable — or is present but lacks a capability required for read-only
+  inspection (e.g., the non-mutating invocations in FR-011) — rather than presenting
+  empty or misleading data or falling back to a mutating command path; affected
+  repositories MUST be shown in a degraded/unavailable state (per FR-027).
 - **FR-020**: The application MUST allow the user to sort the repository list by
   one of these dimensions — slug (owner/repository), directory name, last change
   time, or local change count — each in ascending or descending direction. It MUST
@@ -296,10 +304,9 @@ action.
 - **FR-024**: The application MUST provide a filter to show or hide worktrees in
   the list, defaulting to showing worktrees. Hiding worktrees MUST leave primary
   repositories visible.
-- **FR-029**: The application MUST let the user filter the list by row state — All
-  (default), clean, dirty (uncommitted), out-of-sync, or unavailable — and MUST show
-  an at-a-glance composition summary of how many rows are in each state. The state
-  filter combines with the worktree filter (FR-024).
+- **FR-025**: When no directories are observed (first launch or after all are
+  removed), the application MUST show a guided empty state that explains nothing is
+  being observed and offers a prominent action to add a directory.
 - **FR-026**: The application MUST identify each working tree by a canonical
   identity that resolves symlinks and shared git metadata so that (a) a repository
   reachable through multiple observed directories or symlinks appears exactly once;
@@ -314,9 +321,6 @@ action.
   the observed directory, is intrinsic to probing the in-scope worktree and is bounded
   by the per-inspection timeout of FR-027; it is not a working-tree inspection.)
   Deduplication and grouping MUST be deterministic regardless of discovery order.
-- **FR-025**: When no directories are observed (first launch or after all are
-  removed), the application MUST show a guided empty state that explains nothing is
-  being observed and offers a prominent action to add a directory.
 - **FR-027**: Repository inspection during scan and refresh MUST be isolated per
   repository: a repository whose git commands hang, error, or exceed a bounded
   per-repository time budget MUST NOT block or delay inspection of other
@@ -335,14 +339,10 @@ action.
   also be conveyed by a redundant non-color cue — a per-state status glyph plus the
   row's numeric text (e.g. "clean" / "N changed" / ahead-behind counts / "—") — so the
   state is distinguishable without relying on color. See `design/README.md`.
-- **FR-018**: The application MUST handle repositories with no remote, no
-  upstream, or that have been deleted on disk without crashing, showing the
-  affected values as unavailable.
-- **FR-019**: The application MUST report clearly when the system git client is
-  unavailable — or is present but lacks a capability required for read-only
-  inspection (e.g., the non-mutating invocations in FR-011) — rather than presenting
-  empty or misleading data or falling back to a mutating command path; affected
-  repositories MUST be shown in a degraded/unavailable state (per FR-027).
+- **FR-029**: The application MUST let the user filter the list by row state — All
+  (default), clean, dirty (uncommitted), out-of-sync, or unavailable — and MUST show
+  an at-a-glance composition summary of how many rows are in each state. The state
+  filter combines with the worktree filter (FR-024).
 
 ### Key Entities *(include if feature involves data)*
 
@@ -394,6 +394,8 @@ action.
   (refs), or commit history as a result of scanning or refreshing (0 unintended
   modifications across normal use); internal git housekeeping such as the
   index/stat-cache is avoided by using non-mutating git invocations.
+- **SC-006**: The interface stays responsive (no perceptible freeze) while
+  scanning a directory of at least 50 repositories.
 - **SC-007**: A single unresponsive repository does not prevent the rest from
   refreshing; refresh completes for all responsive repositories within their normal
   time even when one repository is hung.
@@ -402,8 +404,6 @@ action.
   (clean, dirty, out-of-sync, or unavailable) from the redundant non-color cue (status
   glyph plus numeric text), for 100% of listed rows (primary repositories and
   worktrees).
-- **SC-006**: The interface stays responsive (no perceptible freeze) while
-  scanning a directory of at least 50 repositories.
 
 ## Assumptions
 

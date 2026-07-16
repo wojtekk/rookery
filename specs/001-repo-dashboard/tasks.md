@@ -32,7 +32,7 @@ testable. Paths follow plan.md (`src/{shared,main,preload,renderer}`, `tests/`).
 - [ ] T005 Define shared IPC types in `src/shared/types.ts` per data-model.md: `Head`, `WorkingTree`/`WorkingTreeEntry`, `Remote`, `Repository`, `OrphanWorktree`, `Row`, `RowState`, `Settings` (incl. `showWorktrees`, `defaultHost`)
 - [ ] T006 Create the Electron shell in `src/main/main.ts`: `BrowserWindow` with `contextIsolation:true`, `nodeIntegration:false`, `sandbox:true`; load renderer (research R4)
 - [ ] T007 Expose the typed IPC surface via `contextBridge` in `src/preload/preload.ts` as `window.repoDashboard` (all methods from contracts/ipc-api.md, stubbed for now)
-- [ ] T008 [P] Settings load/save (atomic temp-file + rename JSON in `app.getPath('userData')`) in `src/main/config.ts`; defaults: sort `slug`/`asc`, `showWorktrees:true`, `defaultHost:'github.com'` (research R5)
+- [ ] T008 [P] Settings load/save (atomic temp-file + rename JSON in `app.getPath('userData')`) in `src/main/config.ts`, and wire the `getSettings` / `setSort` / `setShowWorktrees` / `setDefaultHost` IPC handlers to persist via it; defaults: sort `slug`/`asc`, `showWorktrees:true`, `defaultHost:'github.com'` (research R5, ipc-api.md)
 - [ ] T009 [P] Git availability + version check (`>= 2.15`) implementing `getGitStatus()` in `src/main/git/probe.ts`, wired via IPC handler (FR-019, research R7)
 
 **Checkpoint**: shell runs, IPC bridge present, settings persist, git presence known.
@@ -122,10 +122,10 @@ refresh; confirm nothing updates without a refresh action.
 
 ## Dependencies & Execution Order
 
-- **Setup (P1)** → **Foundational (P2)** blocks everything.
-- **US1 (P3)** depends only on Foundational — the MVP.
-- **US2 (P4)** depends on Foundational; reuses `config.ts` (T008) and toolbar (T025). Independently testable.
-- **US3 (P5)** depends on Foundational + the scan/probe from US1 (T018) for the timeout to wrap; refresh button reuses toolbar.
+- **Setup (Phase 1)** → **Foundational (Phase 2)** blocks everything.
+- **US1 (Phase 3, priority P1)** depends only on Foundational — the MVP.
+- **US2 (Phase 4, priority P2)** depends on Foundational; reuses `config.ts` (T008) and toolbar (T025). Independently testable.
+- **US3 (Phase 5, priority P3)** depends on Foundational + the scan/probe from US1 (T018) for the timeout to wrap; refresh button reuses toolbar.
 - **Polish (P6)** after the desired stories.
 
 ### Within US1

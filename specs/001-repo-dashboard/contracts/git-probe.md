@@ -64,7 +64,7 @@ git -C <dir> worktree list --porcelain
 - Emits `worktree <path>` / `HEAD <oid>` / `branch <ref>` blocks. Enumerates the
   family; each linked worktree is then probed with P1–P3 for its own fields —
   worktrees get full branch/tracking/local/ahead/behind (see research R2 findings
-  note; spec.md:283-289, FR-023).
+  note; FR-023).
 
 ## P5 — Slug + host
 ```

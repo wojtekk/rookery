@@ -21,12 +21,13 @@ npm start            # launch Electron
 ## Test (pure logic)
 
 ```bash
-npm test             # node:test over compiled parse / identity / sort modules
+npm test             # node:test: parse / identity / sort / filter modules + read-only probe assertion
 ```
 
 Covers: porcelain v2 parsing (incl. no-upstream ⇒ tracking/ahead/behind absent),
 canonical-identity dedup + family grouping, external-primary-in-scope handling,
-and deterministic sort/tie-break.
+deterministic sort/tie-break, state + worktree filtering, and the read-only guarantee
+(`.git/index` untouched after a full probe, using a racy-stat fixture).
 
 ## Validation scenarios (→ Success Criteria)
 
@@ -36,10 +37,11 @@ and deterministic sort/tie-break.
    ahead/behind. Cross-check a couple against `git status -sb` in a terminal.
 2. **Path in tooltip (US1-2)** — hover a home-dir repo row; the full path shows
    `~`-shortened, untruncated, and is not its own column.
-3. **State colors + non-color cue (FR-028, SC-008)** — make a repo dirty → blue
-   row + dirty cue; make one ahead/behind (no dirty) → yellow + out-of-sync cue;
-   confirm both states are distinguishable in a **grayscale screenshot** (color
-   not the sole signal). Dirty + out-of-sync → blue (dirty wins).
+3. **State indicator + non-color cue (FR-028, SC-008)** — make a repo dirty → blue
+   left-edge bar + dirty glyph ("N changed"); make one ahead/behind (no dirty) →
+   amber left-edge bar + out-of-sync glyph (`↑x ↓y`); confirm both states are
+   distinguishable in a **grayscale screenshot** (color not the sole signal). Dirty +
+   out-of-sync → blue (dirty wins). No full-row background wash.
 4. **Worktree rows (Finding 2)** — a repo with a linked worktree on a different
    branch shows the worktree grouped beneath, with its **own** branch/tracking/
    dirty/ahead-behind and its own row color.

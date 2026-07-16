@@ -40,8 +40,9 @@ runtime dependency beyond Electron.
 directories, sort dimension/direction, worktree filter, default host). No database.
 
 **Testing**: `node:test` (stdlib runner) over compiled pure-logic modules —
-porcelain parsing, canonical-identity/dedup/grouping, and sort/tie-break. No test
-framework dependency.
+porcelain parsing, canonical-identity/dedup/grouping, sort/tie-break, and state +
+worktree filtering — plus a read-only probe assertion (`.git/index` untouched after a
+full probe). No test framework dependency.
 
 **Target Platform**: Cross-platform desktop via Electron; primary development
 target macOS. (OS-specific external launchers are out of scope for this feature.)
@@ -130,7 +131,8 @@ tests/
 ├── parse.test.ts         # porcelain v2 / worktree / remote-url parsing
 ├── identity.test.ts      # canonical identity, dedup, family grouping, external-primary in-scope
 ├── sort.test.ts          # sort dimensions + deterministic tie-break
-└── filter.test.ts        # state filter + worktree filter (incl. unavailable rows)
+├── filter.test.ts        # state filter + worktree filter (incl. unavailable rows)
+└── readonly.test.ts      # .git/index untouched after full probe (racy-stat fixture)
 ```
 
 **Structure Decision**: Single Electron project with the standard three-context

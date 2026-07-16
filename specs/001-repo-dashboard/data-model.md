@@ -28,7 +28,7 @@ type Head =
 ## WorkingTree — the shared core (primary and worktree)
 
 A worktree is a full working tree on its own branch, so primary and worktree share
-one core (resolves the "worktree gets full state" review finding, spec.md:283-289).
+one core (resolves the "worktree gets full state" review finding, FR-023).
 `availability` gates everything else: a failed/timed-out probe carries no branch or
 counts, so stale numbers on an unavailable row are unrepresentable (FR-027).
 
@@ -53,8 +53,10 @@ type WorkingTreeEntry = WorkingTree & {
 
 `RowState` drives the **left-edge state indicator** (a colored bar, not a full-row
 background) plus the status glyph and the redundant non-color cue (FR-028). It is a
-pure function of a row's `(availability, local, head)` — computed in the renderer
-(`view/sort.ts`), **not stored** (a stored copy could disagree with the counts).
+pure function of a row's `(availability, local, head)` — computed in the renderer as
+a shared pure helper (co-located with the state filter in `view/filter.ts`, and also
+consumed by `view/summary.ts` and `view/table.ts`), **not stored** (a stored copy
+could disagree with the counts).
 
 ```
 type RowState = 'clean' | 'dirty' | 'out-of-sync' | 'unavailable'
@@ -132,11 +134,11 @@ FR-002).
 
 Default: `sortDimension='slug'`, `sortDirection='asc'` (FR-020).
 
-Note: `showWorktrees` persistence is a deliberate extension beyond the spec's
-enumerated Settings entity (spec.md:351-354, which lists only observed dirs + sort).
-FR-024 requires the filter to exist; persisting it across restarts is covered by the
-constitution's "and equivalent settings" allowance and matches the sort-persistence
-pattern. Flag for spec reconciliation if strict enumeration is desired.
+Note: `showWorktrees` and `defaultHost` match the spec's Settings entity, which
+enumerates the worktree show/hide filter (FR-024) and the default remote host
+(FR-006) alongside the observed directories and sort. Persisting each across restarts
+follows the sort-persistence pattern and the constitution's "and equivalent settings"
+allowance.
 
 ## Sort & grouping rules (FR-020)
 
