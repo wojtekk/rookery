@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Local Repository Dashboard — design proposal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/devicon.min.css" />
+<style>
+  /* ============ tokens ============ */
+  :root {
+    --void:   #0F1218;
+    --surface:#171B24;
+    --surface-2:#1D2330;
+    --line:   #262C3A;
+    --line-2: #323A4D;
+    --fg:     #E7EBF3;
+    --muted:  #7C8698;
+    --faint:  #545E70;
+
+    /* semantic — the ONLY chroma in the app */
+    --ok:         #37A876;
+    --ok-edge:    rgba(55,168,118,0.60);
+    --dirty:      #4C8DFF;
+    --dirty-wash: rgba(76,141,255,0.10);
+    --dirty-edge: rgba(76,141,255,0.55);
+    --sync:       #E7B23C;
+    --sync-wash:  rgba(231,178,60,0.09);
+    --sync-edge:  rgba(231,178,60,0.50);
+    --dead:       #5A6472;
+
+    --ui: "Space Grotesk", system-ui, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, monospace;
+
+    --row-h: 56px;
+    --pad: 22px;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background:
+      linear-gradient(180deg, #090B0F, transparent 300px),
+      radial-gradient(1200px 480px at 78% -8%, rgba(76,141,255,0.05), transparent 60%),
+      var(--void);
+    color: var(--fg);
+    font-family: var(--ui);
+    font-size: 14px;
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.4;
+  }
+  .mono { font-family: var(--mono); font-feature-settings: "zero" 1; }
+
+  .app { max-width: 1240px; margin: 0 auto; padding: 0 24px 80px; }
+
+  /* ============ command bar ============ */
+  .bar {
+    display: flex; align-items: center; gap: 18px;
+    padding: 22px 2px 18px;
+    position: sticky; top: 0; z-index: 20;
+    background: linear-gradient(var(--void) 72%, transparent);
+    backdrop-filter: blur(2px);
+  }
+  .mark { display: flex; align-items: baseline; gap: 10px; }
+  .mark .glyph {
+    font-family: var(--mono); font-weight: 600; font-size: 15px;
+    color: var(--void); background: var(--fg);
+    width: 26px; height: 26px; border-radius: 7px;
+    display: grid; place-items: center; transform: translateY(4px);
+  }
+  .mark h1 { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; margin: 0; }
+  .mark .sub { color: var(--muted); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; }
+
+  .bar-spacer { flex: 1; }
+
+  .folder { color: var(--muted); font-size: 13px; }
+  .ic-folder { width: 15px; height: 15px; color: var(--muted); flex: none; }
+  .ic-gear { width: 15px; height: 15px; color: var(--muted); flex: none; }
+
+  .ctrl {
+    display: flex; align-items: center; gap: 8px;
+    border: 1px solid var(--line); background: var(--surface);
+    border-radius: 9px; padding: 6px 10px; color: var(--muted);
+    font-size: 12.5px; cursor: pointer; user-select: none;
+  }
+  .ctrl:hover { border-color: var(--line-2); color: var(--fg); }
+  .ctrl:focus-visible, .tick:focus-visible, .row:focus-visible {
+    outline: 2px solid var(--fg); outline-offset: 2px;
+  }
+  .toggle { display: flex; align-items: center; gap: 8px; }
+  .switch { width: 34px; height: 19px; border-radius: 999px; background: var(--line-2); position: relative; transition: background .15s; }
+  .switch::after { content:""; position:absolute; top:2px; left:2px; width:15px; height:15px; border-radius:50%; background: var(--fg); transition: transform .15s; }
+  .toggle.on .switch { background: var(--fg); }
+  .toggle.on .switch::after { transform: translateX(15px); background: var(--void); }
+
+  .refresh { color: var(--fg); border-color: var(--line-2); }
+  .ic-reload { width: 14px; height: 14px; color: var(--muted); flex: none; }
+  .refreshing .ic-reload { animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ============ fleet strip (signature) ============ */
+  .fleet { margin: 6px 2px 26px; }
+  .fleet-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 12px; }
+  .fleet-title { font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+  .counts { display: flex; gap: 8px; font-family: var(--mono); font-size: 12.5px; }
+  .filter {
+    font-family: var(--mono); font-size: 12.5px; color: var(--fg);
+    background: transparent; border: 1px solid transparent; border-radius: 999px;
+    padding: 5px 12px; cursor: pointer; display: inline-flex; align-items: center;
+    transition: background .12s, border-color .12s, opacity .12s;
+  }
+  .filter b { font-weight: 600; }
+  .filter .k { color: var(--muted); font-weight: 400; margin-left: 6px; }
+  .filter:hover { background: var(--surface-2); }
+  .filter.active { border-color: var(--line-2); background: var(--surface); }
+  .filter.dim { opacity: .4; }
+
+  .arw { font-style: normal; color: var(--fg); font-size: 11px; margin-left: 2px; width: 8px; display: inline-block; }
+  .sortable:not(.active) .arw { opacity: 0; }
+  .sortable:hover:not(.active) .arw { opacity: .35; }
+  .sortable:hover:not(.active) .arw::after { content: "↕"; }
+  .swatch { display:inline-block; width:8px; height:8px; border-radius:2px; margin-right:7px; transform: translateY(0); }
+  .sw-dirty { background: var(--dirty); }
+  .sw-sync  { background: var(--sync); }
+  .sw-clean { background: var(--ok); }
+  .sw-dead  { background: var(--dead); }
+
+  .sumbar { height: 10px; display: flex; gap: 2px; border-radius: 6px; overflow: hidden; }
+  .seg { display: block; height: 100%; }
+  .seg-clean { background: var(--ok); }
+  .seg-dirty { background: var(--dirty); }
+  .seg-sync  { background: var(--sync); }
+  .seg-dead  { background: repeating-linear-gradient(45deg, var(--dead), var(--dead) 3px, transparent 3px, transparent 6px); }
+
+  /* ============ table ============ */
+  .thead, .row {
+    display: grid;
+    grid-template-columns: 26px minmax(240px,1fr) 220px 92px 118px 118px 40px;
+    align-items: center;
+    gap: 14px;
+  }
+  .thead {
+    padding: 0 var(--pad) 10px; color: var(--muted);
+    font-size: 10px; letter-spacing: .09em; text-transform: uppercase;
+  }
+  .thead span { white-space: nowrap; }
+  .thead .num { font-size: 10px; font-family: var(--ui); }   /* match other headers, not row-data size */
+  .thead .sortable { cursor: pointer; display: inline-flex; gap: 5px; align-items: center; }
+  .thead .sortable.active { color: var(--fg); }
+  .thead .num { text-align: left; }
+
+  .list { border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--surface); }
+
+  .row {
+    min-height: var(--row-h);
+    padding: 9px var(--pad);
+    border-top: 1px solid var(--line);
+    position: relative;
+    cursor: default;
+    transition: background .12s;
+  }
+  .row:first-child { border-top: none; }
+  .row:hover { background: var(--surface-2); }
+  .row:hover, .row:focus-within { z-index: 10; }   /* lift active row so its tooltip/menu paints above neighbours */
+
+  /* state shown ONLY by the left edge line — no row background (dirty wins) */
+  .row.r-clean { box-shadow: inset 3px 0 0 var(--ok-edge); }
+  .row.r-dirty { box-shadow: inset 3px 0 0 var(--dirty-edge); }
+  .row.r-sync  { box-shadow: inset 3px 0 0 var(--sync-edge); }
+  .row.r-dead  { box-shadow: inset 3px 0 0 var(--dead); }
+  .row.r-dead .name, .row.r-dead .slug, .row.r-dead .branch { color: var(--faint); }
+
+  /* status glyph — the non-color cue (shape, survives grayscale) */
+  .glyph-cell { display: grid; place-items: center; }
+  /* git-porcelain state glyphs: faint dot / solid dot / ahead-behind arrows / ? */
+  .g { width: 15px; height: 13px; display: grid; place-items: center; }
+  .g-clean { width:7px; height:7px; background: var(--ok); border-radius:50%; }               /* clean  ● green */
+  .g-dirty { width:10px; height:10px; background: var(--dirty); border-radius:50%; }         /* dirty  ● */
+  .g-sync  { color: var(--sync); font-family: var(--mono); font-weight:600; font-size:12px; line-height:1; letter-spacing:-1px; } /* ↑↓ */
+  .g-dead  { color: var(--dead); font-family: var(--mono); font-weight:700; font-size:14px; line-height:1; } /* ? */
+
+  /* name cell */
+  .name-cell { min-width: 0; }
+  .name { font-family: var(--mono); font-weight: 500; font-size: 14px; color: var(--fg); display: flex; align-items: baseline; gap: 8px; }
+  .name .frag { color: var(--faint); font-weight: 400; font-size: 12px; } /* collisionFragment */
+  .slug { font-family: var(--mono); font-size: 11.5px; color: var(--muted); margin-top: 3px; }
+  .host { display: none; }                                          /* default host (github.com) hidden */
+  .host.ext { display: block; color: var(--faint); margin-top: 2px; } /* only non-default hosts shown */ /* schibsted host stands out subtly */
+
+  /* branch cell */
+  .branch-cell { min-width: 0; }
+  .branch { font-family: var(--mono); font-size: 13px; color: var(--fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .track { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 3px; }
+  .track .up { color: inherit; }   /* upstream ref: origin/ + branch = one color, connected */
+  .tag { font-size: 10px; letter-spacing:.06em; text-transform: uppercase; border:1px solid var(--line-2); border-radius: 5px; padding: 1px 6px; color: var(--muted); }
+  .tag.local { color: var(--muted); }
+  .tag.detached { color: var(--sync); border-color: var(--sync-edge); }
+
+  /* numeric cells */
+  .num { font-family: var(--mono); font-size: 13px; }
+  .metric { display: inline-flex; align-items: center; gap: 6px; }
+  .metric .n { font-weight: 600; }
+  .m-dirty { color: var(--dirty); }
+  .m-sync  { color: var(--sync); }
+  .m-none  { color: var(--faint); }
+  .ab { display:inline-flex; gap:11px; }
+  .ab .up::before { content:"↑"; color: var(--faint); margin-right:2px; }
+  .ab .dn::before { content:"↓"; color: var(--faint); margin-right:2px; }
+
+  .changed { color: var(--muted); }
+
+  /* row actions — persistent ⋯ kebab; app list pops out on hover/focus/tap */
+  .menu { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); }
+  .kebab {
+    width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center;
+    background: transparent; border: none; cursor: pointer;
+    color: var(--muted); font-size: 19px; line-height: 1;
+  }
+  .kebab:hover, .menu:hover .kebab, .menu:focus-within .kebab, .menu.open .kebab {
+    color: var(--fg); background: var(--line);
+  }
+  .actions {
+    position: absolute; right: 100%; top: 50%; transform: translateY(-50%);
+    margin-right: 8px; display: flex; gap: 2px; padding: 3px;
+    background: var(--surface-2); border: 1px solid var(--line-2); border-radius: 11px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.5);
+    opacity: 0; pointer-events: none; transition: opacity .12s; white-space: nowrap;
+  }
+  .actions::after { content: ""; position: absolute; left: 100%; top: 0; bottom: 0; width: 10px; } /* hover bridge */
+  .menu:hover .actions, .menu:focus-within .actions, .menu.open .actions { opacity: 1; pointer-events: auto; }
+  .act { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; cursor: pointer; }
+  .act:hover { background: var(--line); }
+  .act i { font-size: 17px; color: var(--muted); transition: color .1s; }
+  .act svg { width: 18px; height: 18px; color: var(--muted); transition: color .1s; }
+  .act.retry { font-family: var(--mono); color: var(--muted); font-size: 15px; }
+  /* neutral at rest → brand color on hover */
+  .act:hover .devicon-github-original { color: var(--fg); }   /* GitHub  */
+  .act:hover .devicon-vscode-plain    { color: #22A4EE; }     /* VS Code */
+  .act:hover .devicon-apple-original  { color: var(--fg); }   /* Finder  */
+  .act.ij:hover svg   { color: #FE2857; }                     /* IntelliJ */
+  .act.term:hover svg { color: #4EAA25; }                     /* Terminal */
+
+  /* worktree rows */
+  .wt { grid-template-columns: 26px minmax(240px,1fr) 220px 92px 118px 118px 40px; }
+  .wt .name-cell { padding-left: 20px; position: relative; }
+  .wt .name-cell::before {
+    content:""; position:absolute; left: 4px; top: -18px; bottom: 50%;
+    border-left: 1px solid var(--line-2); border-bottom: 1px solid var(--line-2);
+    width: 10px; border-radius: 0 0 0 4px;
+  }
+  .wt .name { font-size: 13px; font-weight: 400; }
+  .wt-caret { cursor:pointer; color: var(--muted); font-family: var(--mono); font-size:11px; margin-left:6px; }
+
+  .expander { color: var(--faint); font-family: var(--mono); font-size: 12px; cursor: pointer; user-select:none; }
+  .grp-count { color: var(--faint); font-size: 11px; font-family: var(--mono); }
+
+  /* tooltip */
+  [data-tip] { position: relative; }
+  [data-tip]:hover::after {
+    content: attr(data-tip);
+    position: absolute; left: 0; top: calc(100% + 8px);
+    background: var(--void); border: 1px solid var(--line-2); color: var(--fg);
+    font-family: var(--mono); font-size: 11.5px; padding: 6px 9px; border-radius: 7px;
+    white-space: nowrap; z-index: 40; box-shadow: 0 8px 24px rgba(0,0,0,.5);
+  }
+  .act[data-tip]:hover::after { left: auto; right: 0; }   /* open leftward, stay on-screen */
+
+  .foot { margin-top: 22px; color: var(--faint); font-size: 11.5px; display:flex; justify-content: space-between; }
+  .foot .mono { color: var(--muted); }
+
+  /* ============ directories modal ============ */
+  .scrim {
+    position: fixed; inset: 0; z-index: 60;
+    background: rgba(6,8,12,0.66); backdrop-filter: blur(3px);
+    display: none; align-items: flex-start; justify-content: center;
+    padding: 88px 24px;
+  }
+  .scrim.open { display: flex; }
+  .modal {
+    width: 100%; max-width: 560px; max-height: 78vh; display: flex; flex-direction: column;
+    background: var(--surface); border: 1px solid var(--line-2); border-radius: 16px;
+    box-shadow: 0 30px 90px rgba(0,0,0,.6); overflow: hidden;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .scrim.open .modal { animation: pop .18s ease-out both; }
+    @keyframes pop { from { opacity:0; transform: translateY(-8px) scale(.985);} to { opacity:1; transform:none;} }
+  }
+  .modal-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 20px; border-bottom: 1px solid var(--line);
+  }
+  .modal-head h2 { margin: 0; font-size: 15px; font-weight: 600; }
+  .modal-head .hint { color: var(--muted); font-size: 11.5px; font-family: var(--mono); }
+  .modal-close { color: var(--muted); cursor: pointer; font-size: 18px; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 8px; }
+  .modal-close:hover { background: var(--line); color: var(--fg); }
+
+  .dir-list { overflow-y: auto; padding: 8px; }
+  .dir {
+    display: grid; grid-template-columns: 18px 1fr auto auto; align-items: center; gap: 12px;
+    padding: 11px 12px; border-radius: 10px;
+  }
+  .dir:hover { background: var(--surface-2); }
+  .dir .ic { color: var(--muted); font-size: 13px; }
+  .dir .path { font-family: var(--mono); font-size: 13px; color: var(--fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dir .meta { font-family: var(--mono); font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+  .dir .rm { color: var(--faint); cursor: pointer; width: 26px; height: 26px; display: grid; place-items: center; border-radius: 7px; }
+  .dir .rm:hover { background: var(--line); color: var(--sync); }
+  .dir.warn .path { color: var(--sync); }
+  .dir.warn .meta { color: var(--sync); opacity: .85; }
+
+  .modal-foot { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-top: 1px solid var(--line); }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: var(--ui); font-size: 13px; color: var(--void); background: var(--fg);
+    border: none; border-radius: 9px; padding: 9px 14px; cursor: pointer; font-weight: 500;
+  }
+  .btn:hover { filter: brightness(1.08); }
+  .btn.ghost { background: transparent; color: var(--muted); border: 1px solid var(--line-2); }
+  .btn.ghost:hover { color: var(--fg); }
+  .modal-foot .grow { flex: 1; }
+
+  /* entrance animation */
+  @media (prefers-reduced-motion: no-preference) {
+    .row { animation: rise .4s both; }
+    @keyframes rise { from { opacity:0; transform: translateY(6px);} to { opacity:1; transform:none;} }
+  }
+
+  /* responsive: collapse secondary columns */
+  @media (max-width: 920px) {
+    .thead, .row, .wt { grid-template-columns: 24px minmax(160px,1fr) 96px 44px; }
+    .col-branch, .col-changed, .col-sync { display: none; }
+    .name .frag { display:none; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- command bar -->
+  <header class="bar">
+    <div class="mark">
+      <span class="glyph">~</span>
+      <div>
+        <h1>Local Repository Dashboard</h1>
+        <div class="sub">read-only · system git</div>
+      </div>
+    </div>
+    <div class="bar-spacer"></div>
+    <div class="toggle on ctrl" id="wtToggle" tabindex="0" role="switch" aria-checked="true">
+      <span class="switch"></span> Worktrees
+    </div>
+    <div class="ctrl refresh" id="refreshBtn" tabindex="0">
+      <svg class="ic-reload" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v5h-5"/></svg> Refresh
+    </div>
+    <div class="ctrl" id="dirsBtn" tabindex="0" aria-haspopup="dialog" title="Settings">
+      <svg class="ic-gear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> Settings
+    </div>
+  </header>
+
+  <!-- fleet strip (signature) -->
+  <section class="fleet">
+    <div class="fleet-head">
+      <span class="fleet-title">Fleet — 48 repositories</span>
+      <div class="counts" id="filters" role="group" aria-label="Filter by state">
+        <button class="filter active" data-filter="all"><b>48</b><span class="k">all</span></button>
+        <button class="filter" data-filter="clean"><span class="swatch sw-clean"></span><b>42</b><span class="k">clean</span></button>
+        <button class="filter" data-filter="dirty"><span class="swatch sw-dirty"></span><b style="color:var(--dirty)">3</b><span class="k">uncommitted</span></button>
+        <button class="filter" data-filter="sync"><span class="swatch sw-sync"></span><b style="color:var(--sync)">2</b><span class="k">out of sync</span></button>
+        <button class="filter" data-filter="dead"><span class="swatch sw-dead"></span><b style="color:var(--dead)">1</b><span class="k">unavailable</span></button>
+      </div>
+    </div>
+    <div class="sumbar" aria-hidden="true" title="42 clean · 3 uncommitted · 2 out of sync · 1 unavailable">
+      <span class="seg seg-clean" style="flex:42"></span>
+      <span class="seg seg-dirty" style="flex:3"></span>
+      <span class="seg seg-sync"  style="flex:2"></span>
+      <span class="seg seg-dead"  style="flex:1"></span>
+    </div>
+  </section>
+
+  <!-- table -->
+  <div class="thead" id="thead">
+    <span></span>
+    <span class="sortable" data-sort="dir">directory · slug <i class="arw"></i></span>
+    <span class="sortable col-branch" data-sort="branch">branch · tracking <i class="arw"></i></span>
+    <span class="num sortable" data-sort="local">uncommitted <i class="arw"></i></span>
+    <span class="num sortable col-sync" data-sort="ab">ahead / behind <i class="arw"></i></span>
+    <span class="col-changed sortable active" data-sort="changed" data-dir="desc">last change <i class="arw"></i></span>
+    <span></span>
+  </div>
+
+  <div class="list" id="list">
+
+    <!-- DIRTY (blue wins even though also ahead) -->
+    <div class="row r-dirty" tabindex="0" data-state="dirty" data-dir="aurora-account" data-branch="feat/consent-sync" data-local="7" data-ab="1" data-ts="700" data-avail="1">
+      <div class="glyph-cell"><span class="g g-dirty" role="img" aria-label="uncommitted changes"></span></div>
+      <div class="name-cell">
+        <div class="name" data-tip="~/IdeaProjects/finn/aurora-account">aurora-account</div>
+        <div class="slug">finn/aurora-account<span class="host">github.com</span></div>
+      </div>
+      <div class="branch-cell col-branch">
+        <div class="branch">feat/consent-sync</div>
+        <div class="track">origin/<span class="up">feat/consent-sync</span></div>
+      </div>
+      <div class="num"><span class="metric m-dirty"><span class="n">7</span> changed</span></div>
+      <div class="num col-sync"><span class="ab"><span class="up m-sync">1</span><span class="dn m-none">0</span></span></div>
+      <div class="num changed col-changed">4 min ago</div>
+      <div class="actions" aria-label="Repository actions">
+        <span class="act" data-tip="Open on GitHub"><i class="devicon-github-original"></i></span>
+        <span class="act ij" data-tip="Open in IntelliJ"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="4" stroke="currentColor" stroke-width="1.8"/><path d="M6.5 18h4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><text x="12" y="14.5" font-family="'JetBrains Mono', monospace" font-size="9" font-weight="700" fill="currentColor" text-anchor="middle">IJ</text></svg></span>
+        <span class="act" data-tip="Open in VS Code"><i class="devicon-vscode-plain"></i></span>
+        <span class="act" data-tip="Reveal in Finder"><i class="devicon-apple-original"></i></span>
+        <span class="act term" data-tip="Open in Terminal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4.5" width="19" height="15" rx="2.5"/><path d="M6.5 10l3 2.5-3 2.5"/><path d="M12.5 15.5h5"/></svg></span>
+      </div>
+    </div>
+
+    <!-- DIRTY with a linked worktree family -->
+    <div class="row r-dirty" tabindex="0" data-state="dirty" data-dir="terraform-infrastructure" data-branch="main" data-local="2" data-ab="0" data-ts="600" data-avail="1">
+      <div class="glyph-cell"><span class="g g-dirty" role="img" aria-label="uncommitted changes"></span></div>
+      <div class="name-cell">
+        <div class="name" data-tip="~/IdeaProjects/spt-infrastructure/terraform-infrastructure">terraform-infrastructure <span class="expander" id="exp1">▾ 1 worktree</span></div>
+        <div class="slug">spt-infrastructure/terraform-infrastructure<span class="host ext">github.schibsted.io</span></div>
+      </div>
+      <div class="branch-cell col-branch">
+        <div class="branch">main</div>
+        <div class="track">origin/<span class="up">main</span></div>
+      </div>
+      <div class="num"><span class="metric m-dirty"><span class="n">2</span> changed</span></div>
+      <div class="num col-sync"><span class="ab"><span class="up m-none">0</span><span class="dn m-none">0</span></span></div>
+      <div class="num changed col-changed">1 h ago</div>
+      <div class="actions" aria-label="Repository actions">
+        <span class="act" data-tip="Open on GitHub"><i class="devicon-github-original"></i></span>
+        <span class="act ij" data-tip="Open in IntelliJ"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="4" stroke="currentColor" stroke-width="1.8"/><path d="M6.5 18h4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><text x="12" y="14.5" font-family="'JetBrains Mono', monospace" font-size="9" font-weight="700" fill="currentColor" text-anchor="middle">IJ</text></svg></span>
+        <span class="act" data-tip="Open in VS Code"><i class="devicon-vscode-plain"></i></span>
+        <span class="act" data-tip="Reveal in Finder"><i class="devicon-apple-original"></i></span>
+        <span class="act term" data-tip="Open in Terminal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4.5" width="19" height="15" rx="2.5"/><path d="M6.5 10l3 2.5-3 2.5"/><path d="M12.5 15.5h5"/></svg></span>
+      </div>
+    </div>
+    <!-- worktree under the primary: OUT OF SYNC, derives its own state -->
+    <div class="row wt r-sync wt-child grp1" tabindex="0" data-state="sync" data-dir="terraform-infrastructure" data-branch="fix/atlantis-plan" data-local="0" data-ab="2" data-ts="650" data-avail="1">
+      <div class="glyph-cell"><span class="g g-sync" role="img" aria-label="out of sync">↑↓</span></div>
+      <div class="name-cell">
+        <div class="name" data-tip="~/IdeaProjects/spt-infrastructure/.worktrees/atlantis-fix">terraform-infrastructure <span class="frag">…/.worktrees/atlantis-fix</span></div>
+        <div class="slug">spt-infrastructure/terraform-infrastructure<span class="host ext">github.schibsted.io</span></div>
+      </div>
+      <div class="branch-cell col-branch">
+        <div class="branch">fix/atlantis-plan</div>
+        <div class="track">origin/<span class="up">fix/atlantis-plan</span></div>
+      </div>
+      <div class="num"><span class="metric m-none">—</span></div>
+      <div class="num col-sync"><span class="ab"><span class="up m-sync">2</span><span class="dn m-none">0</span></span></div>
+      <div class="num changed col-changed">22 min ago</div>
+      <div class="actions" aria-label="Worktree actions">
+        <span class="act" data-tip="Open on GitHub"><i class="devicon-github-original"></i></span>
+        <span class="act ij" data-tip="Open in IntelliJ"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="4" stroke="currentColor" stroke-width="1.8"/><path d="M6.5 18h4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><text x="12" y="14.5" font-family="'JetBrains Mono', monospace" font-size="9" font-weight="700" fill="currentColor" text-anchor="middle">IJ</text></svg></span>
+        <span class="act" data-tip="Open in VS Code"><i class="devicon-vscode-plain"></i></span>
+        <span class="act" data-tip="Reveal in Finder"><i class="devicon-apple-original"></i></span>
+        <span class="act term" data-tip="Open in Terminal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4.5" width="19" height="15" rx="2.5"/><path d="M6.5 10l3 2.5-3 2.5"/><path d="M12.5 15.5h5"/></svg></span>
+      </div>
+    </div>
+
+    <!-- OUT OF SYNC (behind) -->
+    <div class="row r-sync" tabindex="0" data-state="sync" data-dir="privacy-broker" data-branch="main" data-local="0" data-ab="3" data-ts="500" data-avail="1">
+      <div class="glyph-cell"><span class="g g-sync" role="img" aria-label="out of sync">↑↓</span></div>
+      <div class="name-cell">
+        <div class="name" data-tip="~/IdeaProjects/UFo-User-Choices/privacy-broker">privacy-broker</div>
+        <div class="slug">UFo-User-Choices/privacy-broker<span class="host ext">github.schibsted.io</span></div>
+      </div>
+      <div class="branch-cell col-branch">
+        <div class="branch">main</div>
+        <div class="track">origin/<span class="up">main</span></div>
+      </div>
+      <div class="num"><span class="metric m-none">clean</span></div>
+      <div class="num col-sync"><span class="ab"><span class="up m-none">0</span><span class="dn m-sync">3</span></span></div>
+      <div class="num changed col-changed">3 h ago</div>
+      <div class="actions" aria-label="Repository actions">
+        <span class="act" data-tip="Open on GitHub"><i class="devicon-github-original"></i></span>
+        <span class="act ij" data-tip="Open in IntelliJ"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="4" stroke="currentColor" stroke-width="1.8"/><path d="M6.5 18h4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><text x="12" y="14.5" font-family="'JetBrains Mono', monospace" font-size="9" font-weight="700" fill="currentColor" text-anchor="middle">IJ</text></svg></span>
+        <span class="act" data-tip="Open in VS Code"><i class="devicon-vscode-plain"></i></span>
+        <span class="act" data-tip="Reveal in Finder"><i class="devicon-apple-original"></i></span>
+        <span class="act term" data-tip="Open in Terminal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4.5" width="19" height="15" rx="2.5"/><path d="M6.5 10l3 2.5-3 2.5"/><path d="M12.5 15.5h5"/></svg></span>
+      </div>
+    </div>
+
+    <!-- CLEAN, tracked -->
+    <div class="row r-clean" tabindex="0" data-state="clean" data-dir="idp" data-branch="main" data-local="0" data-ab="0" data-ts="300" data-avail="1">
+      <div class="glyph-cell"><span class="g g-clean" role="img" aria-label="clean"></span></div>
+      <div class="name-cell">
+        <div class="name" data-tip="~/IdeaProjects/identity/idp">idp</div>
+        <div class="slug">identity/idp<span class="host ext">github.schibsted.io</span></div>
+      </div>
+      <div class="branch-cell col-branch">
+        <div class="branch">main</div>
+        <div class="track">origin/<span class="up">main</span></div>
+      </div>
+      <div class="num"><span class="metric m-none">clean</span></div>
+      <div class="num col-sync"><span class="metric m-none">in sync</span></div>
+      <div class="num changed col-changed">yesterday</div>
+      <div class="actions" aria-label="Repository actions">
+        <span class="act" data-tip="Open on GitHub"><i class="devicon-github-original"></i></span>
+        <span class="act ij" data-tip="Open in IntelliJ"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="4" stroke="currentColor" stroke-width="1.8"/><path d="M6.5 18h4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><text x="12" y="14.5" font-family="'JetBrains Mono', monospace" font-size="9" font-weight="700" fill="currentColor" text-anchor="middle">IJ</text></svg></span>
+        <span class="act" data-tip="Open in VS Code"><i class="devicon-vscode-plain"></i></span>
+        <span class="act" data-tip="Reveal in Finder"><i class="devicon-apple-original"></i></span>
+        <span class="act term" data-tip="Open in Terminal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4.5" width="19" height="15" rx="2.5"/><path d="M6.5 10l3 2.5-3 2.5"/><path d="M12.5 15.5h5"/></svg></span>
+      </div>
+    </div>
+
+    <!-- CLEAN, local-only branch (no upstream) -->
+    <div class="row r-clean" tabindex="0" data-state="clean" data-dir="sch-actions" data-branch="spike/cache-key" data-local="0" data-ab="0" data-ts="200" data-avail="1">
+      <div class="glyph-cell"><span class="g g-clean" role="img" aria-label="clean"></span></div>
+      <div class="name-cell">
+        <div class="name" data-tip="~/IdeaProjects/sch-actions">sch-actions</div>
+        <div class="slug">sch-actions/helm-chart<span class="host">github.com</span></div>
+      </div>
+      <div class="branch-cell col-branch">
+        <div class="branch">spike/cache-key</div>
+        <div class="track"><span class="tag local">local-only</span></div>
+      </div>
+      <div class="num"><span class="metric m-none">clean</span></div>
+      <div class="num col-sync"><span class="metric m-none" data-tip="No upstream to compare against">n/a</span></div>
+      <div class="num changed col-changed">2 days ago</div>
+      <div class="actions" aria-label="Repository actions">
+        <span class="act" data-tip="Open on GitHub"><i class="devicon-github-original"></i></span>
+        <span class="act ij" data-tip="Open in IntelliJ"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="4" stroke="currentColor" stroke-width="1.8"/><path d="M6.5 18h4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><text x="12" y="14.5" font-family="'JetBrains Mono', monospace" font-size="9" font-weight="700" fill="currentColor" text-anchor="middle">IJ</text></svg></span>
+        <span class="act" data-tip="Open in VS Code"><i class="devicon-vscode-plain"></i></span>
+        <span class="act" data-tip="Reveal in Finder"><i class="devicon-apple-original"></i></span>
+        <span class="act term" data-tip="Open in Terminal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4.5" width="19" height="15" rx="2.5"/><path d="M6.5 10l3 2.5-3 2.5"/><path d="M12.5 15.5h5"/></svg></span>
+      </div>
+    </div>
+
+    <!-- CLEAN, detached HEAD -->
+    <div class="row r-clean" tabindex="0" data-state="clean" data-dir="git-manager" data-branch="a1b2c3d" data-local="0" data-ab="0" data-ts="199" data-avail="1">
+      <div class="glyph-cell"><span class="g g-clean" role="img" aria-label="clean"></span></div>
+      <div class="name-cell">
+        <div class="name" data-tip="~/IdeaProjects/wojciech-krawczyk/git-manager">git-manager</div>
+        <div class="slug">wojciech-krawczyk/git-manager<span class="host">github.com</span></div>
+      </div>
+      <div class="branch-cell col-branch">
+        <div class="branch">a1b2c3d</div>
+        <div class="track"><span class="tag detached">detached</span></div>
+      </div>
+      <div class="num"><span class="metric m-none">clean</span></div>
+      <div class="num col-sync"><span class="metric m-none">n/a</span></div>
+      <div class="num changed col-changed">2 days ago</div>
+      <div class="actions" aria-label="Repository actions">
+        <span class="act" data-tip="Open on GitHub"><i class="devicon-github-original"></i></span>
+        <span class="act ij" data-tip="Open in IntelliJ"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="4" stroke="currentColor" stroke-width="1.8"/><path d="M6.5 18h4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><text x="12" y="14.5" font-family="'JetBrains Mono', monospace" font-size="9" font-weight="700" fill="currentColor" text-anchor="middle">IJ</text></svg></span>
+        <span class="act" data-tip="Open in VS Code"><i class="devicon-vscode-plain"></i></span>
+        <span class="act" data-tip="Reveal in Finder"><i class="devicon-apple-original"></i></span>
+        <span class="act term" data-tip="Open in Terminal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4.5" width="19" height="15" rx="2.5"/><path d="M6.5 10l3 2.5-3 2.5"/><path d="M12.5 15.5h5"/></svg></span>
+      </div>
+    </div>
+
+    <!-- UNAVAILABLE (timed out / stalled mount) -->
+    <div class="row r-dead" tabindex="0" data-state="dead" data-dir="legacy-archive" data-branch="" data-local="0" data-ab="0" data-ts="0" data-avail="0">
+      <div class="glyph-cell"><span class="g g-dead" role="img" aria-label="unavailable">?</span></div>
+      <div class="name-cell">
+        <div class="name" data-tip="~/work/finn/legacy-archive (probe timed out)">legacy-archive</div>
+        <div class="slug">finn/legacy-archive<span class="host">github.com</span></div>
+      </div>
+      <div class="branch-cell col-branch">
+        <div class="branch">—</div>
+        <div class="track" data-tip="Inspection exceeded 5s and was cancelled">timed out · 5s</div>
+      </div>
+      <div class="num"><span class="metric m-none">—</span></div>
+      <div class="num col-sync"><span class="metric m-none">—</span></div>
+      <div class="num changed col-changed">—</div>
+      <div class="actions" aria-label="Repository actions">
+        <span class="act retry" data-tip="Retry inspection">↻</span>
+        <span class="act" data-tip="Reveal in Finder"><i class="devicon-apple-original"></i></span>
+        <span class="act term" data-tip="Open in Terminal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4.5" width="19" height="15" rx="2.5"/><path d="M6.5 10l3 2.5-3 2.5"/><path d="M12.5 15.5h5"/></svg></span>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="foot">
+    <span>Showing 8 of 48 · grouped by primary · <span class="mono">git 2.55.0</span></span>
+    <span class="mono">last refresh 14:31:07 · no network traffic</span>
+  </div>
+
+</div>
+
+<!-- directories modal -->
+<div class="scrim" id="scrim" role="dialog" aria-modal="true" aria-label="Observed directories">
+  <div class="modal">
+    <div class="modal-head">
+      <h2>Observed directories</h2>
+      <span class="hint">scanned at startup &amp; on refresh</span>
+      <span class="modal-close" id="modalClose" title="Close (Esc)">×</span>
+    </div>
+    <div class="dir-list">
+      <div class="dir">
+        <svg class="ic-folder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+        <span class="path" title="/Users/you/IdeaProjects">~/IdeaProjects</span>
+        <span class="meta">41 repos</span>
+        <span class="rm" title="Stop observing">×</span>
+      </div>
+      <div class="dir">
+        <svg class="ic-folder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+        <span class="path" title="/Users/you/work/finn">~/work/finn</span>
+        <span class="meta">6 repos</span>
+        <span class="rm" title="Stop observing">×</span>
+      </div>
+      <div class="dir warn">
+        <span class="ic">⚠</span>
+        <span class="path" title="/Volumes/archive/repos">/Volumes/archive/repos</span>
+        <span class="meta" data-tip="Path is missing or unreadable this scan">unreadable</span>
+        <span class="rm" title="Stop observing">×</span>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn"><span class="folder" style="color:var(--void)">＋</span> Add directory…</button>
+      <span class="grow"></span>
+      <button class="btn ghost" id="modalDone">Done</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const list = document.getElementById('list');
+
+  // ---- wrap each row's action list behind a ⋯ kebab (hover / focus / tap to open) ----
+  document.querySelectorAll('.row > .actions').forEach(actions => {
+    const row = actions.parentElement;
+    const menu = document.createElement('div');
+    menu.className = 'menu';
+    const kebab = document.createElement('button');
+    kebab.className = 'kebab';
+    kebab.innerHTML = '&#8942;'; // ⋮
+    kebab.setAttribute('aria-label', 'Repository actions');
+    kebab.setAttribute('aria-haspopup', 'true');
+    kebab.addEventListener('click', e => {
+      e.stopPropagation();
+      const wasOpen = menu.classList.contains('open');
+      document.querySelectorAll('.menu.open').forEach(m => m.classList.remove('open'));
+      menu.classList.toggle('open', !wasOpen);
+    });
+    row.appendChild(menu);
+    menu.appendChild(kebab);
+    menu.appendChild(actions); // move existing icon list into the popover
+  });
+  document.addEventListener('click', () => document.querySelectorAll('.menu.open').forEach(m => m.classList.remove('open')));
+
+  // ---- families: a primary row + its following worktree children ----
+  function families() {
+    const rows = [...list.querySelectorAll('.row')];
+    const fam = [];
+    rows.forEach(r => {
+      if (r.classList.contains('wt-child')) fam[fam.length - 1].children.push(r);
+      else fam.push({ primary: r, children: [] });
+    });
+    return fam;
+  }
+
+  // ---- sorting (click header; click active header again reverts) ----
+  let sortKey = 'changed', sortDir = 'desc';
+  const num = (r, k) => parseInt(r.dataset[k] || '0', 10);
+  const keyMap = { dir:'dir', branch:'branch', local:'local', ab:'ab', changed:'ts' };
+
+  function compare(a, b) {
+    // unavailable primaries always sort last, regardless of direction (spec FR-020 fallback)
+    const aAvail = num(a.primary, 'avail'), bAvail = num(b.primary, 'avail');
+    if (aAvail !== bAvail) return aAvail ? -1 : 1;
+    const dk = keyMap[sortKey];
+    let d;
+    if (sortKey === 'dir' || sortKey === 'branch') {
+      d = (a.primary.dataset[dk] || '').localeCompare(b.primary.dataset[dk] || '');
+    } else {
+      const av = sortKey === 'ab' ? num(a.primary,'ab') : num(a.primary, dk);
+      const bv = sortKey === 'ab' ? num(b.primary,'ab') : num(b.primary, dk);
+      d = av - bv;
+    }
+    return sortDir === 'asc' ? d : -d;
+  }
+
+  function applySort() {
+    families().sort(compare).forEach(f => {
+      list.appendChild(f.primary);
+      f.children.forEach(c => list.appendChild(c));
+    });
+    document.querySelectorAll('#thead .sortable').forEach(h => {
+      const active = h.dataset.sort === sortKey;
+      h.classList.toggle('active', active);
+      h.querySelector('.arw').textContent = active ? (sortDir === 'asc' ? '↑' : '↓') : '';
+    });
+  }
+
+  document.querySelectorAll('#thead .sortable').forEach(h => {
+    const act = () => {
+      const k = h.dataset.sort;
+      if (k === sortKey) sortDir = (sortDir === 'asc' ? 'desc' : 'asc');   // revert order
+      else { sortKey = k; sortDir = (k === 'changed' || k === 'local' || k === 'ab') ? 'desc' : 'asc'; }
+      applySort();
+    };
+    h.addEventListener('click', act);
+    h.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); act(); } });
+    h.tabIndex = 0;
+  });
+  applySort();
+
+  // ---- state filter (fleet labels) + worktree toggle share one visibility pass ----
+  let stateFilter = 'all', showWorktrees = true;
+  function applyVisibility() {
+    families().forEach(f => {
+      const showFam = stateFilter === 'all' || f.primary.dataset.state === stateFilter
+        || (showWorktrees && f.children.some(c => c.dataset.state === stateFilter));
+      f.primary.style.display = showFam ? '' : 'none';
+      f.children.forEach(c => {
+        const show = showWorktrees && showFam
+          && (stateFilter === 'all' || c.dataset.state === stateFilter);
+        c.style.display = show ? '' : 'none';
+      });
+    });
+  }
+
+  document.querySelectorAll('#filters .filter').forEach(f => {
+    f.addEventListener('click', () => {
+      document.querySelectorAll('#filters .filter').forEach(x => x.classList.remove('active'));
+      f.classList.add('active');
+      stateFilter = f.dataset.filter;
+      applyVisibility();
+    });
+  });
+
+  const wtToggle = document.getElementById('wtToggle');
+  wtToggle.addEventListener('click', () => {
+    showWorktrees = wtToggle.classList.toggle('on');
+    wtToggle.setAttribute('aria-checked', showWorktrees);
+    applyVisibility();
+  });
+
+  // ---- directories modal ----
+  const scrim = document.getElementById('scrim');
+  const openModal = () => scrim.classList.add('open');
+  const closeModal = () => scrim.classList.remove('open');
+  document.getElementById('dirsBtn').addEventListener('click', openModal);
+  document.getElementById('modalClose').addEventListener('click', closeModal);
+  document.getElementById('modalDone').addEventListener('click', closeModal);
+  scrim.addEventListener('click', e => { if (e.target === scrim) closeModal(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+  // ---- refresh pulse demo ----
+  const btn = document.getElementById('refreshBtn');
+  btn.addEventListener('click', () => {
+    document.body.classList.add('refreshing');
+    setTimeout(() => document.body.classList.remove('refreshing'), 1500);
+  });
+</script>
+</body>
+</html>
