@@ -316,8 +316,8 @@ action.
   as an independent primary row; when the main working tree lies outside all observed
   directories, the application MUST NOT discover, stat, or render the external
   primary's working tree (no external row, no traversal of its files) — the in-scope
-  worktree(s) are shown and marked as having their primary outside the observed
-  directories. (Reading the repository's shared git metadata, which may reside outside
+  worktree(s) are shown as **orphan worktrees**, marked as having their primary outside
+  the observed directories. (Reading the repository's shared git metadata, which may reside outside
   the observed directory, is intrinsic to probing the in-scope worktree and is bounded
   by the per-inspection timeout of FR-027; it is not a working-tree inspection.)
   Deduplication and grouping MUST be deterministic regardless of discovery order.
@@ -466,7 +466,7 @@ action.
   support the non-mutating read flags in FR-011 (`git --no-optional-locks`, available
   since git 2.15). If the system git is older or lacks a required capability, affected
   repositories are marked unavailable with a clear reason (FR-019) rather than falling
-  back to a mutating command. The exact supported floor is a tunable default to be
-  confirmed in planning.
+  back to a mutating command. The supported floor is **git 2.15** (decided in planning);
+  the value remains a tunable default.
 - **Platform**: The application is a local desktop application. Specific platform
   and packaging choices are deferred to planning.

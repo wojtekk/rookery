@@ -58,14 +58,14 @@ matching `git status -sb`; sort and state-filter work.
 
 ### Implementation for User Story 1
 - [ ] T015 [P] [US1] Git probe P1–P5 with `--no-optional-locks` (`rev-parse` identity, `status --porcelain=v2 --branch`, `log -1 --format=%cI`, `worktree list --porcelain`, `config remote.origin.url`) in `src/main/git/probe.ts` (research R1)
-- [ ] T016 [P] [US1] Pure parsers (porcelain v2 → `Head`+local count; worktree list; remote url → `{host,slug}`) in `src/main/git/parse.ts`
-- [ ] T017 [US1] Canonical identity + family grouping/dedup + orphan-worktree derivation in `src/main/git/identity.ts` (depends T015, T016; FR-026)
+- [ ] T016 [P] [US1] Pure parsers (porcelain v2 → `Head`+local count; worktree list; remote url → `{host,slug}` or `null`) in `src/main/git/parse.ts` (FR-006/007/008/009; FR-018 null-remote fallback)
+- [ ] T017 [US1] Canonical identity + family grouping/dedup + orphan-worktree derivation in `src/main/git/identity.ts` (depends T015, T016; FR-026, FR-018)
 - [ ] T018 [US1] Scan observed dirs one level deep + inspect families through a bounded concurrency pool in `src/main/scan.ts` (depends T015–T017; FR-003, research R3)
 - [ ] T019 [US1] Implement `listRepositories()` / `refresh()` returning `Row[]` in `src/main/main.ts` (depends T018; ipc-api.md)
 - [ ] T020 [US1] Renderer bootstrap in `src/renderer/renderer.ts` + `src/renderer/index.html`: call IPC, hold view state (sort, state filter, worktree toggle, defaultHost)
 - [ ] T021 [P] [US1] Pure sort + tie-break in `src/renderer/view/sort.ts` (depends T005; FR-020)
 - [ ] T022 [P] [US1] Pure state + worktree filter in `src/renderer/view/filter.ts` (depends T005; FR-029/FR-024)
-- [ ] T023 [US1] Table rendering in `src/renderer/view/table.ts`: primary rows + grouped worktrees; **left-edge state indicator + porcelain glyph** (no full-row wash); name/slug/**host only when `!= defaultHost`**; branch + tracking (`origin/branch` one token / `local-only` / `detached`); dirty count (>0 only); ahead/behind `↑x ↓y`; last change; `~`-tooltip; collision fragment; ⋮ kebab **deferred-actions slot** (FR-005/006/007/008/009/022/023/028; design/README.md)
+- [ ] T023 [US1] Table rendering in `src/renderer/view/table.ts`: primary rows + grouped worktrees; **left-edge state indicator + porcelain glyph** (no full-row wash); name/slug/**host only when `!= defaultHost`**; branch + tracking (`origin/branch` one token / `local-only` / `detached`); dirty count (>0 only); ahead/behind `↑x ↓y`; last change; `~`-tooltip; collision fragment; ⋮ kebab **deferred-actions slot** (FR-005/006/007/008/009/018/022/023/028; design/README.md)
 - [ ] T024 [P] [US1] Fleet summary in `src/renderer/view/summary.ts`: proportional composition bar + state-filter chips with counts (FR-029)
 - [ ] T025 [P] [US1] Command bar in `src/renderer/view/toolbar.ts`: Worktrees toggle (FR-024) — Refresh/Settings buttons added in US3/US2
 - [ ] T026 [US1] `src/renderer/styles.css`: tokens; left-edge indicator + glyph; sortable-header + column layout; tooltip right-edge flip; hovered/focused-row `z-index` elevation (design gotchas); `prefers-reduced-motion`
