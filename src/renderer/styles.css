@@ -63,7 +63,7 @@ body {
 }
 .mark {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 10px;
 }
 #toolbar {
@@ -72,17 +72,10 @@ body {
   gap: 10px;
 }
 .mark .glyph {
-  font-family: var(--mono);
-  font-weight: 600;
-  font-size: 15px;
-  color: var(--void);
-  background: var(--fg);
   width: 26px;
   height: 26px;
   border-radius: 7px;
-  display: grid;
-  place-items: center;
-  transform: translateY(4px);
+  object-fit: cover;
 }
 .mark h1 {
   font-size: 16px;
