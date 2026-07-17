@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'" />
+<title>Local Repository Dashboard</title>
+<link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+<div class="app">
+
+  <header class="bar">
+    <div class="mark">
+      <span class="glyph">~</span>
+      <div>
+        <h1>Local Repository Dashboard</h1>
+        <div class="sub">read-only · system git</div>
+      </div>
+    </div>
+    <div class="bar-spacer"></div>
+    <div id="toolbar"></div>
+  </header>
+
+  <section class="fleet">
+    <div class="fleet-head">
+      <span class="fleet-title" id="fleetTitle">Fleet</span>
+      <div class="counts" id="filters" role="group" aria-label="Filter by state"></div>
+    </div>
+    <div class="sumbar" id="sumbar" aria-hidden="true"></div>
+  </section>
+
+  <div id="gitWarning"></div>
+
+  <div class="thead" id="thead">
+    <span></span>
+    <span class="sortable" data-sort="slug">directory · slug <i class="arw"></i></span>
+    <span>branch · tracking</span>
+    <span class="num sortable" data-sort="localCount">uncommitted <i class="arw"></i></span>
+    <span class="num">ahead / behind</span>
+    <span class="sortable" data-sort="lastChange">last change <i class="arw"></i></span>
+    <span></span>
+  </div>
+
+  <div class="list" id="list"></div>
+  <div class="empty" id="empty" hidden></div>
+
+  <div class="foot">
+    <span id="footLeft"></span>
+    <span class="mono" id="footRight"></span>
+  </div>
+
+</div>
+<div id="settingsModal"></div>
+<script type="module" src="./renderer.js"></script>
+</body>
+</html>

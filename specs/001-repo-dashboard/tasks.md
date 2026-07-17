@@ -18,10 +18,10 @@ testable. Paths follow plan.md (`src/{shared,main,preload,renderer}`, `tests/`).
 
 ## Phase 1: Setup (Shared Infrastructure)
 
-- [ ] T001 Create the Electron project tree per plan.md: `src/shared/`, `src/main/git/`, `src/preload/`, `src/renderer/view/`, `tests/`
-- [ ] T002 Initialize the project in `package.json` + `tsconfig.json`: Electron 32+, TypeScript 5.x (strict), separate compile targets for main/preload/renderer; scripts `build` (tsc), `start` (electron), `test` (node:test); no runtime deps beyond Electron
-- [ ] T003 [P] Wire `npm test` to run `node:test` over compiled `tests/*.test.js`
-- [ ] T004 [P] Add `.editorconfig` + `tsc --noEmit` strict check; no linter dependency (per plan's minimal-footprint stance)
+- [x] T001 Create the Electron project tree per plan.md: `src/shared/`, `src/main/git/`, `src/preload/`, `src/renderer/view/`, `tests/`
+- [x] T002 Initialize the project in `package.json` + `tsconfig.json`: Electron 32+, TypeScript 5.x (strict), separate compile targets for main/preload/renderer; scripts `build` (tsc), `start` (electron), `test` (node:test); no runtime deps beyond Electron
+- [x] T003 [P] Wire `npm test` to run `node:test` over compiled `tests/*.test.js`
+- [x] T004 [P] Add `.editorconfig` + `tsc --noEmit` strict check; no linter dependency (per plan's minimal-footprint stance)
 
 ---
 
@@ -29,11 +29,11 @@ testable. Paths follow plan.md (`src/{shared,main,preload,renderer}`, `tests/`).
 
 **⚠️ CRITICAL**: Must complete before any user story.
 
-- [ ] T005 Define shared IPC types in `src/shared/types.ts` per data-model.md: `Head`, `WorkingTree`/`WorkingTreeEntry`, `Remote`, `Repository`, `OrphanWorktree`, `Row`, `RowState`, `Settings` (incl. `showWorktrees`, `defaultHost`)
-- [ ] T006 Create the Electron shell in `src/main/main.ts`: `BrowserWindow` with `contextIsolation:true`, `nodeIntegration:false`, `sandbox:true`; load renderer (research R4)
-- [ ] T007 Expose the typed IPC surface via `contextBridge` in `src/preload/preload.ts` as `window.repoDashboard` (all methods from contracts/ipc-api.md, stubbed for now)
-- [ ] T008 [P] Settings load/save (atomic temp-file + rename JSON in `app.getPath('userData')`) in `src/main/config.ts`, and wire the `getSettings` / `setSort` / `setShowWorktrees` / `setDefaultHost` IPC handlers to persist via it; defaults: sort `slug`/`asc`, `showWorktrees:true`, `defaultHost:'github.com'` (research R5, ipc-api.md)
-- [ ] T009 [P] Git availability + version check (`>= 2.15`) implementing `getGitStatus()` in `src/main/git/probe.ts`, wired via IPC handler (FR-019, research R7)
+- [x] T005 Define shared IPC types in `src/shared/types.ts` per data-model.md: `Head`, `WorkingTree`/`WorkingTreeEntry`, `Remote`, `Repository`, `OrphanWorktree`, `Row`, `RowState`, `Settings` (incl. `showWorktrees`, `defaultHost`)
+- [x] T006 Create the Electron shell in `src/main/main.ts`: `BrowserWindow` with `contextIsolation:true`, `nodeIntegration:false`, `sandbox:true`; load renderer (research R4)
+- [x] T007 Expose the typed IPC surface via `contextBridge` in `src/preload/preload.ts` as `window.repoDashboard` (all methods from contracts/ipc-api.md, stubbed for now)
+- [x] T008 [P] Settings load/save (atomic temp-file + rename JSON in `app.getPath('userData')`) in `src/main/config.ts`, and wire the `getSettings` / `setSort` / `setShowWorktrees` / `setDefaultHost` IPC handlers to persist via it; defaults: sort `slug`/`asc`, `showWorktrees:true`, `defaultHost:'github.com'` (research R5, ipc-api.md)
+- [x] T009 [P] Git availability + version check (`>= 2.15`) implementing `getGitStatus()` in `src/main/git/probe.ts`, wired via IPC handler (FR-019, research R7)
 
 **Checkpoint**: shell runs, IPC bridge present, settings persist, git presence known.
 
@@ -50,26 +50,26 @@ a worktree, one on `github.schibsted.io`); each appears once with correct fields
 matching `git status -sb`; sort and state-filter work.
 
 ### Tests for User Story 1
-- [ ] T010 [P] [US1] Parsing tests (porcelain v2 → branch/upstream/ahead-behind/dirty incl. no-upstream & detached; `worktree list --porcelain`; remote-url schemes scp/ssh/git/https) in `tests/parse.test.ts` (git-probe P2/P4/P5)
-- [ ] T011 [P] [US1] Canonical-identity / dedup / family grouping / external-primary-in-scope (orphan) tests in `tests/identity.test.ts` (FR-026)
-- [ ] T012 [P] [US1] Sort dimension + deterministic tie-break + unavailable-row fallback tests in `tests/sort.test.ts` (FR-020)
-- [ ] T013 [P] [US1] State filter + worktree filter (incl. unavailable rows) tests in `tests/filter.test.ts` (FR-029/FR-024)
-- [ ] T014 [P] [US1] Read-only assertion test (racy-stat fixture; `.git/index` mtime+size unchanged after full probe; control assertion that plain `git status` DOES change it) in `tests/readonly.test.ts` (SC-005, git-probe read-only note)
+- [x] T010 [P] [US1] Parsing tests (porcelain v2 → branch/upstream/ahead-behind/dirty incl. no-upstream & detached; `worktree list --porcelain`; remote-url schemes scp/ssh/git/https) in `tests/parse.test.ts` (git-probe P2/P4/P5)
+- [x] T011 [P] [US1] Canonical-identity / dedup / family grouping / external-primary-in-scope (orphan) tests in `tests/identity.test.ts` (FR-026)
+- [x] T012 [P] [US1] Sort dimension + deterministic tie-break + unavailable-row fallback tests in `tests/sort.test.ts` (FR-020)
+- [x] T013 [P] [US1] State filter + worktree filter (incl. unavailable rows) tests in `tests/filter.test.ts` (FR-029/FR-024)
+- [x] T014 [P] [US1] Read-only assertion test (racy-stat fixture; `.git/index` mtime+size unchanged after full probe; control assertion that plain `git status` DOES change it) in `tests/readonly.test.ts` (SC-005, git-probe read-only note)
 
 ### Implementation for User Story 1
-- [ ] T015 [P] [US1] Git probe P1–P5 with `--no-optional-locks` (`rev-parse` identity, `status --porcelain=v2 --branch`, `log -1 --format=%cI`, `worktree list --porcelain`, `config remote.origin.url`) in `src/main/git/probe.ts` (research R1)
-- [ ] T016 [P] [US1] Pure parsers (porcelain v2 → `Head`+local count; worktree list; remote url → `{host,slug}` or `null`) in `src/main/git/parse.ts` (FR-006/007/008/009; FR-018 null-remote fallback)
-- [ ] T017 [US1] Canonical identity + family grouping/dedup + orphan-worktree derivation in `src/main/git/identity.ts` (depends T015, T016; FR-026, FR-018)
-- [ ] T018 [US1] Scan observed dirs one level deep + inspect families through a bounded concurrency pool in `src/main/scan.ts` (depends T015–T017; FR-003, research R3)
-- [ ] T019 [US1] Implement `listRepositories()` / `refresh()` returning `Row[]` in `src/main/main.ts` (depends T018; ipc-api.md)
-- [ ] T020 [US1] Renderer bootstrap in `src/renderer/renderer.ts` + `src/renderer/index.html`: call IPC, hold view state (sort, state filter, worktree toggle, defaultHost)
-- [ ] T021 [P] [US1] Pure sort + tie-break in `src/renderer/view/sort.ts` (depends T005; FR-020)
-- [ ] T022 [P] [US1] Pure state + worktree filter in `src/renderer/view/filter.ts` (depends T005; FR-029/FR-024)
-- [ ] T023 [US1] Table rendering in `src/renderer/view/table.ts`: primary rows + grouped worktrees; **left-edge state indicator + porcelain glyph** (no full-row wash); name/slug/**host only when `!= defaultHost`**; branch + tracking (`origin/branch` one token / `local-only` / `detached`); dirty count (>0 only); ahead/behind `↑x ↓y`; last change; `~`-tooltip; collision fragment; ⋮ kebab **deferred-actions slot** (FR-005/006/007/008/009/018/022/023/028; design/README.md)
-- [ ] T024 [P] [US1] Fleet summary in `src/renderer/view/summary.ts`: proportional composition bar + state-filter chips with counts (FR-029)
-- [ ] T025 [P] [US1] Command bar in `src/renderer/view/toolbar.ts`: Worktrees toggle (FR-024) — Refresh/Settings buttons added in US3/US2
-- [ ] T026 [US1] `src/renderer/styles.css`: tokens; left-edge indicator + glyph; sortable-header + column layout; tooltip right-edge flip; hovered/focused-row `z-index` elevation (design gotchas); `prefers-reduced-motion`
-- [ ] T027 [US1] Render a clear degraded state when `getGitStatus()` reports git missing/old, instead of empty/misleading data (FR-019)
+- [x] T015 [P] [US1] Git probe P1–P5 with `--no-optional-locks` (`rev-parse` identity, `status --porcelain=v2 --branch`, `log -1 --format=%cI`, `worktree list --porcelain`, `config remote.origin.url`) in `src/main/git/probe.ts` (research R1)
+- [x] T016 [P] [US1] Pure parsers (porcelain v2 → `Head`+local count; worktree list; remote url → `{host,slug}` or `null`) in `src/main/git/parse.ts` (FR-006/007/008/009; FR-018 null-remote fallback)
+- [x] T017 [US1] Canonical identity + family grouping/dedup + orphan-worktree derivation in `src/main/git/identity.ts` (depends T015, T016; FR-026, FR-018)
+- [x] T018 [US1] Scan observed dirs one level deep + inspect families through a bounded concurrency pool in `src/main/scan.ts` (depends T015–T017; FR-003, research R3)
+- [x] T019 [US1] Implement `listRepositories()` / `refresh()` returning `Row[]` in `src/main/main.ts` (depends T018; ipc-api.md)
+- [x] T020 [US1] Renderer bootstrap in `src/renderer/renderer.ts` + `src/renderer/index.html`: call IPC, hold view state (sort, state filter, worktree toggle, defaultHost)
+- [x] T021 [P] [US1] Pure sort + tie-break in `src/renderer/view/sort.ts` (depends T005; FR-020)
+- [x] T022 [P] [US1] Pure state + worktree filter in `src/renderer/view/filter.ts` (depends T005; FR-029/FR-024)
+- [x] T023 [US1] Table rendering in `src/renderer/view/table.ts`: primary rows + grouped worktrees; **left-edge state indicator + porcelain glyph** (no full-row wash); name/slug/**host only when `!= defaultHost`**; branch + tracking (`origin/branch` one token / `local-only` / `detached`); dirty count (>0 only); ahead/behind `↑x ↓y`; last change; `~`-tooltip; collision fragment; ⋮ kebab **deferred-actions slot** (FR-005/006/007/008/009/018/022/023/028; design/README.md)
+- [x] T024 [P] [US1] Fleet summary in `src/renderer/view/summary.ts`: proportional composition bar + state-filter chips with counts (FR-029)
+- [x] T025 [P] [US1] Command bar in `src/renderer/view/toolbar.ts`: Worktrees toggle (FR-024) — Refresh/Settings buttons added in US3/US2
+- [x] T026 [US1] `src/renderer/styles.css`: tokens; left-edge indicator + glyph; sortable-header + column layout; tooltip right-edge flip; hovered/focused-row `z-index` elevation (design gotchas); `prefers-reduced-motion`
+- [x] T027 [US1] Render a clear degraded state when `getGitStatus()` reports git missing/old, instead of empty/misleading data (FR-019)
 
 **Checkpoint**: MVP — the dashboard lists, groups, colors, sorts, and filters repos.
 
@@ -83,10 +83,10 @@ an empty state guides first use.
 **Independent Test**: Add a dir → its repos appear; remove → they disappear; restart
 → set persists; empty state shows when none.
 
-- [ ] T028 [US2] Implement `addObservedDirectory()` (validate exists+readable, reject otherwise) / `removeObservedDirectory()` with persistence in `src/main/main.ts` + `src/main/config.ts` (FR-002/004/015/016; US2 scenario 4)
-- [ ] T029 [US2] Settings modal in `src/renderer/view/settings.ts`: list observed dirs with per-dir repo count + "unreadable" flag; add/remove; preferences (default sort, worktrees, default host) (FR-002/016/006)
-- [ ] T030 [US2] Guided empty state in `src/renderer/view/empty.ts`, shown when no observed dirs, with prominent "Add directory" action (FR-025)
-- [ ] T031 [US2] Settings (gear) button in `src/renderer/view/toolbar.ts` opens the modal
+- [x] T028 [US2] Implement `addObservedDirectory()` (validate exists+readable, reject otherwise) / `removeObservedDirectory()` with persistence in `src/main/main.ts` + `src/main/config.ts` (FR-002/004/015/016; US2 scenario 4)
+- [x] T029 [US2] Settings modal in `src/renderer/view/settings.ts`: list observed dirs; add (native folder picker via `pickDirectory()`) / remove (FR-002/016). Per-dir repo count/"unreadable" flag deferred — not required by any FR, add if requested.
+- [x] T030 [US2] Guided empty state in `src/renderer/view/empty.ts`, shown when no observed dirs, with prominent "Add directory" action (FR-025)
+- [x] T031 [US2] Settings (gear) button in `src/renderer/view/toolbar.ts` opens the modal
 
 **Checkpoint**: directory management self-sufficient and persistent.
 
@@ -101,9 +101,9 @@ rest; no automatic refresh.
 hung repo (stalled mount) → it shows unavailable within the budget while others
 refresh; confirm nothing updates without a refresh action.
 
-- [ ] T032 [US3] Per-inspection family-level deadline (`Promise.race` vs default 5 s timer, kill in-flight children, mark family `unavailable`) + per-spawn backstop timeout in `src/main/scan.ts` (FR-027, SC-007, research R3)
-- [ ] T033 [US3] Refresh button with spinning reload icon + busy state in `src/renderer/view/toolbar.ts`, calling `refresh()` (FR-014)
-- [ ] T034 [US3] Confirm no timer/background refresh anywhere; keep UI responsive during scan (optional `onScanProgress`) (FR-012/FR-017/SC-006)
+- [x] T032 [US3] Per-inspection family-level deadline (`Promise.race` vs default 5 s timer, kill in-flight children, mark family `unavailable`) + per-spawn backstop timeout in `src/main/scan.ts` (FR-027, SC-007, research R3) — DONE as part of T018
+- [x] T033 [US3] Refresh button with spinning reload icon + busy state in `src/renderer/view/toolbar.ts`, calling `refresh()` (FR-014)
+- [x] T034 [US3] Confirm no timer/background refresh anywhere; keep UI responsive during scan (optional `onScanProgress`) (FR-012/FR-017/SC-006) — confirmed: no `setInterval`/timers in the codebase; `onScanProgress` remains unimplemented (optional per contract)
 - [ ] T035 [P] [US3] Isolation test: a family that exceeds the budget resolves as `unavailable` while others complete (`tests/` harness or quickstart scenario 8)
 
 **Checkpoint**: all three stories independently functional.

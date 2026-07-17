@@ -6,22 +6,22 @@ spec's Success Criteria.
 
 ## Prerequisites
 
-- Node.js (LTS) and npm.
+- Node.js (LTS) and pnpm.
 - System `git` **>= 2.15** on `PATH` (`git --version`).
 - macOS/Linux/Windows desktop session (Electron).
 
 ## Setup & run
 
 ```bash
-npm install          # Electron + TypeScript (dev only); no runtime deps beyond Electron
-npm run build        # tsc: compile main/preload/renderer/shared
-npm start            # launch Electron
+pnpm install         # Electron + TypeScript (dev only); no runtime deps beyond Electron
+pnpm run build       # tsc: compile main/preload/renderer/shared
+pnpm start           # launch Electron
 ```
 
 ## Test (pure logic)
 
 ```bash
-npm test             # node:test: parse / identity / sort / filter modules + read-only probe assertion
+pnpm test            # node:test: parse / identity / sort / filter modules + read-only probe assertion
 ```
 
 Covers: porcelain v2 parsing (incl. no-upstream ⇒ tracking/ahead/behind absent),

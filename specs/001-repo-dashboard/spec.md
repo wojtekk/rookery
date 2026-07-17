@@ -277,18 +277,20 @@ action.
   empty or misleading data or falling back to a mutating command path; affected
   repositories MUST be shown in a degraded/unavailable state (per FR-027).
 - **FR-020**: The application MUST allow the user to sort the repository list by
-  one of these dimensions — slug (owner/repository), directory name, last change
-  time, or local change count — each in ascending or descending direction. It MUST
-  default to slug ascending and MUST persist the chosen sort dimension and direction
-  across restarts. Sorting MUST reorder primary repositories only; each primary's
-  worktrees MUST remain grouped directly beneath it regardless of the chosen sort.
-  When sorting by local change count, the sort key for a primary MUST be the sum of
-  its own local change count and those of its linked worktrees (each row still
-  displays its own count per FR-008 and FR-023). Ordering MUST be deterministic: when
-  the chosen sort key is equal between two primaries, or absent (e.g., a repository
-  with no remote has no slug to sort by), the application MUST break the tie by
-  directory name, then by full path, ascending — both of which are always present and
-  unique enough to guarantee a stable, reproducible order across refreshes.
+  one of these dimensions — slug (repository name only, excluding the
+  owner/organisation), directory name, last change time, or local change count —
+  each in ascending or descending direction. It MUST default to slug ascending and
+  MUST persist the chosen sort dimension and direction across restarts. Sorting
+  MUST reorder primary repositories only; each primary's worktrees MUST remain
+  grouped directly beneath it regardless of the chosen sort. When sorting by local
+  change count, the sort key for a primary MUST be the sum of its own local change
+  count and those of its linked worktrees (each row still displays its own count
+  per FR-008 and FR-023). Ordering MUST be deterministic: when the chosen sort key
+  is equal between two primaries — e.g. two repositories that share a name across
+  different owners, or a repository with no remote has no slug to sort by — the
+  application MUST break the tie by directory name, then by full path, ascending —
+  both of which are always present and unique enough to guarantee a stable,
+  reproducible order across refreshes.
 - **FR-021**: For each discovered repository, the application MUST identify its
   linked git worktrees by querying git (not by directory scanning).
 - **FR-022**: The application MUST display a repository's worktrees visually

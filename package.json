@@ -1,0 +1,21 @@
+{
+  "name": "git-manager",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local Repository Dashboard — a read-only Electron viewer for locally-cloned git repositories.",
+  "main": "dist/src/main/main.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.renderer.json && pnpm run copy-assets",
+    "copy-assets": "mkdir -p dist/src/renderer && cp src/renderer/index.html src/renderer/styles.css dist/src/renderer/",
+    "start": "pnpm run build && electron .",
+    "test": "pnpm run build && node --test dist/tests/*.test.js"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "electron": "40.8.5",
+    "typescript": "^5.5.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["electron"]
+  }
+}
