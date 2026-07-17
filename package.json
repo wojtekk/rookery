@@ -1,8 +1,9 @@
 {
-  "name": "git-manager",
+  "name": "rookery",
+  "productName": "Rookery",
   "version": "0.1.0",
   "private": true,
-  "description": "Local Repository Dashboard — a read-only Electron viewer for locally-cloned git repositories.",
+  "description": "Rookery — Local git organized. An Electron dashboard for managing locally-cloned git repositories.",
   "main": "dist/src/main/main.js",
   "scripts": {
     "build": "tsc -p tsconfig.json && tsc -p tsconfig.renderer.json && pnpm run copy-assets",

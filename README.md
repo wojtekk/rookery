@@ -5,11 +5,11 @@ on your own machine and shows their state at a glance — branch, tracking,
 uncommitted changes, ahead/behind — without running `git status` in a terminal
 across every folder yourself.
 
-It is **read-only and local-only by design**: it shells out to your
-already-installed system `git` (using your existing credentials) to inspect
-repositories, never mutates a working tree, branch, or history, and makes no
-network calls of its own. See [`.specify/memory/constitution.md`](.specify/memory/constitution.md)
-for the non-negotiable rules this project is built against.
+It is **local-only by design**: it shells out to your already-installed system
+`git` (using your existing credentials) to inspect and act on repositories, and
+makes no network calls of its own. See
+[`.specify/memory/constitution.md`](.specify/memory/constitution.md) for the
+non-negotiable rules this project is built against.
 
 Full requirements live in
 [`specs/001-repo-dashboard/spec.md`](specs/001-repo-dashboard/spec.md); the
