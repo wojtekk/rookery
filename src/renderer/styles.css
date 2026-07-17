@@ -72,9 +72,9 @@ body {
   gap: 10px;
 }
 .mark .glyph {
-  width: 26px;
-  height: 26px;
-  border-radius: 7px;
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
   object-fit: cover;
 }
 .mark h1 {
