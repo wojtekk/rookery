@@ -1,4 +1,6 @@
-// Non-mutating system-git invocations for one working tree. See contracts/git-probe.md.
+// System-git invocations for one working tree. See contracts/git-probe.md. The functions
+// defined *in this module* are all non-mutating; `runGit` itself is a generic shell-out and is
+// exported so 004's delete.ts can reuse it for its one mutating call (`git worktree remove`).
 // Parsing lives in parse.ts (pure); this module only shells out and returns raw text.
 
 import { execFile } from 'node:child_process';
@@ -14,7 +16,7 @@ export interface RawIdentity {
   topLevel: string;
 }
 
-function runGit(args: string[], cwd: string): Promise<string> {
+export function runGit(args: string[], cwd: string): Promise<string> {
   return new Promise((resolve, reject) => {
     execFile('git', args, { cwd, timeout: SPAWN_TIMEOUT_MS, killSignal: 'SIGKILL' }, (err, stdout) => {
       if (err) reject(err);
@@ -68,6 +70,21 @@ export async function probeWorktreeList(dir: string): Promise<string> {
     return await runGit(['-C', dir, 'worktree', 'list', '--porcelain'], dir);
   } catch {
     return '';
+  }
+}
+
+/**
+ * P6 — live fetch from the configured remote (004 research R3). Read-only (Constitution V:
+ * "git talking to its configured remotes" is permitted outbound activity). Bounded by the
+ * same SPAWN_TIMEOUT_MS as every other probe; never throws — a failure (offline, unreachable,
+ * auth, timeout) is reported as `false` so the caller can treat "unverifiable" as at-risk.
+ */
+export async function probeFetch(dir: string): Promise<boolean> {
+  try {
+    await runGit(['-C', dir, 'fetch'], dir);
+    return true;
+  } catch {
+    return false;
   }
 }
 
