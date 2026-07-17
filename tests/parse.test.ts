@@ -62,25 +62,36 @@ test('parseWorktreeList: primary + linked worktrees, incl. a detached one', () =
   ]);
 });
 
+// 002 retains the verbatim origin as `rawUrl` (the `${2}` value); parsed cases still expose host/slug.
 test('parseRemoteUrl: scp-like SSH', () => {
-  assert.deepEqual(parseRemoteUrl('git@github.com:owner/repo.git'), { host: 'github.com', slug: 'owner/repo' });
+  assert.deepEqual(parseRemoteUrl('git@github.com:owner/repo.git'), {
+    host: 'github.com',
+    slug: 'owner/repo',
+    rawUrl: 'git@github.com:owner/repo.git',
+  });
 });
 
 test('parseRemoteUrl: ssh:// with user and port', () => {
   assert.deepEqual(parseRemoteUrl('ssh://git@github.schibsted.io:22/owner/repo.git'), {
     host: 'github.schibsted.io',
     slug: 'owner/repo',
+    rawUrl: 'ssh://git@github.schibsted.io:22/owner/repo.git',
   });
 });
 
 test('parseRemoteUrl: git://', () => {
-  assert.deepEqual(parseRemoteUrl('git://github.com/owner/repo.git'), { host: 'github.com', slug: 'owner/repo' });
+  assert.deepEqual(parseRemoteUrl('git://github.com/owner/repo.git'), {
+    host: 'github.com',
+    slug: 'owner/repo',
+    rawUrl: 'git://github.com/owner/repo.git',
+  });
 });
 
 test('parseRemoteUrl: https:// with userinfo and port', () => {
   assert.deepEqual(parseRemoteUrl('https://user@github.com:443/owner/repo.git'), {
     host: 'github.com',
     slug: 'owner/repo',
+    rawUrl: 'https://user@github.com:443/owner/repo.git',
   });
 });
 
@@ -88,6 +99,7 @@ test('parseRemoteUrl: nested group slug keeps full path', () => {
   assert.deepEqual(parseRemoteUrl('https://gitlab.com/group/subgroup/repo.git'), {
     host: 'gitlab.com',
     slug: 'group/subgroup/repo',
+    rawUrl: 'https://gitlab.com/group/subgroup/repo.git',
   });
 });
 
@@ -95,6 +107,11 @@ test('parseRemoteUrl: no remote configured', () => {
   assert.equal(parseRemoteUrl(null), null);
 });
 
-test('parseRemoteUrl: genuinely unparseable (local filesystem path remote)', () => {
-  assert.equal(parseRemoteUrl('/Volumes/backup/bare-repo.git'), null);
+// A present-but-unparseable origin still carries a rawUrl, so `${2}` stays enabled for the row (FR-013, R3).
+test('parseRemoteUrl: present-but-unparseable (local filesystem path remote) keeps rawUrl', () => {
+  assert.deepEqual(parseRemoteUrl('/Volumes/backup/bare-repo.git'), {
+    host: null,
+    slug: null,
+    rawUrl: '/Volumes/backup/bare-repo.git',
+  });
 });

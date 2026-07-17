@@ -3,7 +3,8 @@
 import { app, ipcMain } from 'electron';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import type { Settings } from '../shared/types';
+import type { Action, Settings } from '../shared/types';
+import { ACTION_LIMIT, DEFAULT_ACTIONS } from '../shared/actions';
 
 const DEFAULT_SETTINGS: Settings = {
   observedDirectories: [],
@@ -11,7 +12,23 @@ const DEFAULT_SETTINGS: Settings = {
   sortDirection: 'asc',
   showWorktrees: true,
   defaultHost: 'github.com',
+  actions: [],
 };
+
+/** Defense-in-depth for `setActions` (ipc-api.md): structurally valid, non-empty, within the limit. */
+function isValidActionList(value: unknown): value is Action[] {
+  if (!Array.isArray(value) || value.length > ACTION_LIMIT) return false;
+  return value.every(
+    (a) =>
+      a &&
+      typeof a.id === 'string' &&
+      typeof a.iconId === 'string' &&
+      typeof a.name === 'string' &&
+      a.name.length > 0 &&
+      typeof a.command === 'string' &&
+      a.command.length > 0,
+  );
+}
 
 function settingsPath(): string {
   return path.join(app.getPath('userData'), 'settings.json');
@@ -24,9 +41,16 @@ export async function loadSettings(): Promise<Settings> {
   let settings: Settings;
   try {
     const raw = await fs.readFile(settingsPath(), 'utf8');
-    settings = { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
+    const parsed = JSON.parse(raw);
+    settings = {
+      ...DEFAULT_SETTINGS,
+      ...parsed,
+      // First-run seed: only when the file never carried an `actions` key. An intentionally-emptied
+      // list (`actions: []`) is preserved so the menu stays hidden (FR-009, FR-012, research R5).
+      actions: 'actions' in parsed ? parsed.actions : [...DEFAULT_ACTIONS],
+    };
   } catch {
-    settings = { ...DEFAULT_SETTINGS };
+    settings = { ...DEFAULT_SETTINGS, actions: [...DEFAULT_ACTIONS] };
   }
   cached = settings;
   return settings;
@@ -60,5 +84,13 @@ export function registerSettingsIpc(): void {
   ipcMain.handle('setDefaultHost', async (_e, host: string) => {
     const settings = await loadSettings();
     await saveSettings({ ...settings, defaultHost: host });
+  });
+
+  ipcMain.handle('getActions', async () => (await loadSettings()).actions);
+
+  ipcMain.handle('setActions', async (_e, actions: Action[]) => {
+    if (!isValidActionList(actions)) throw new Error('Invalid actions list');
+    const settings = await loadSettings();
+    await saveSettings({ ...settings, actions });
   });
 }

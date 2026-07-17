@@ -22,7 +22,24 @@ export type WorkingTreeEntry = WorkingTree & {
 
 export type RowState = 'clean' | 'dirty' | 'out-of-sync' | 'unavailable';
 
-export type Remote = { host: string; slug: string } | null;
+// Three real cases (002 widens 001's `{host,slug}|null`): a parsed origin (host is a string),
+// a present-but-unparseable origin (host null, but rawUrl still supplies `${2}`), and no origin at all.
+// `rawUrl` is the verbatim `git remote.origin.url` — the value `${2}` substitutes (data-model.md, FR-005).
+export type Remote =
+  | { host: string; slug: string; rawUrl: string }
+  | { host: null; slug: null; rawUrl: string }
+  | null;
+
+// A user-configured launcher shown in the per-row ⋮ menu. `iconId` references the bundled
+// icon catalog (no image data stored); `command` is the shell template with `${1}`/`${2}`. See data-model.md.
+export interface Action {
+  id: string;
+  name: string;
+  iconId: string;
+  command: string;
+}
+
+export type RunActionResult = { ok: true } | { ok: false; reason: string };
 
 export type Repository = WorkingTreeEntry & {
   remote: Remote;
@@ -46,6 +63,7 @@ export interface Settings {
   sortDirection: 'asc' | 'desc';
   showWorktrees: boolean;
   defaultHost: string;
+  actions: Action[];
 }
 
 export type GitStatus =
@@ -67,4 +85,7 @@ export interface RepoDashboardApi {
   getGitStatus(): Promise<GitStatus>;
   pickDirectory(): Promise<string | null>;
   onScanProgress(cb: (done: number, total: number) => void): void;
+  getActions(): Promise<Action[]>;
+  setActions(actions: Action[]): Promise<void>;
+  runAction(actionId: string, target: { path: string; remoteUrl: string | null }): Promise<RunActionResult>;
 }

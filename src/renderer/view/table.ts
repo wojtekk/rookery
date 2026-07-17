@@ -1,9 +1,16 @@
 // Table rendering: primary rows + grouped worktrees, left-edge state indicator + glyph (FR-028),
-// name/slug/host, branch+tracking, counts, tooltip, collision fragment, reserved kebab slot.
+// name/slug/host, branch+tracking, counts, tooltip, collision fragment, and the per-row ⋮ action menu.
 
-import type { Row, WorkingTreeEntry, Remote, RowState } from '../../shared/types';
+import type { Action, Row, WorkingTreeEntry, Remote, RowState } from '../../shared/types';
 import { deriveRowState } from './filter.js';
+import { isActionEnabledForRow } from '../../shared/actions.js';
+import { iconSvg, iconLabel } from './icons/catalog.js';
 import type { SortDimension, SortDirection } from './sort.js';
+
+/** Row-level launch target the renderer forwards to `runAction` (path is the tilde form; main expands it). */
+export interface RowActionHandlers {
+  onRun: (actionId: string, target: { path: string; remoteUrl: string | null }) => void;
+}
 
 const STATE_ROW_CLASS: Record<RowState, string> = {
   clean: 'r-clean',
@@ -49,7 +56,7 @@ function relativeTime(iso: string | null): string {
   const days = Math.floor(hours / 24);
   if (days === 1) return 'yesterday';
   if (days < 7) return `${days} days ago`;
-  return new Date(iso).toLocaleDateString();
+  return iso.slice(0, 10); // git's `%cI` is strict ISO 8601, so this is already YYYY-MM-DD
 }
 
 function fillBranchCell(cell: HTMLElement, entry: WorkingTreeEntry): void {
@@ -131,7 +138,48 @@ function buildAbCell(entry: WorkingTreeEntry): HTMLElement {
   return cell;
 }
 
-function buildRow(entry: WorkingTreeEntry, remote: Remote, defaultHost: string, isWorktree: boolean): HTMLElement {
+// Per-row action icons: rendered inline (never an overlay, so nothing can be clipped or hidden),
+// in configured order (FR-004), disabled for `${2}` actions on remote-less rows (FR-013), and the
+// cell is empty when there are no actions (FR-009). `remote` is the row's own remote — for a
+// worktree row, its primary's remote (threaded by renderRows).
+function buildMenuCell(
+  entry: WorkingTreeEntry,
+  remote: Remote,
+  actions: Action[],
+  handlers: RowActionHandlers,
+): HTMLElement {
+  const cell = el('div', 'menu');
+  for (const action of actions) {
+    const enabled = isActionEnabledForRow(action, remote);
+    const btn = el('button', 'row-action-ico');
+    btn.type = 'button';
+    btn.innerHTML = iconSvg(action.iconId); // bundled static SVG (no user input) — safe
+    // The app's tooltip is CSS-driven via [data-tip] (see styles.css), not the native `title`
+    // attribute, to match the row-name tooltip and avoid Electron's unreliable native tooltip timing.
+    btn.setAttribute('data-tip', enabled ? action.name : `${action.name} — no remote configured`);
+    btn.setAttribute('aria-label', `${action.name} (${iconLabel(action.iconId)})`);
+
+    if (!enabled) {
+      btn.disabled = true;
+      btn.classList.add('disabled');
+    } else {
+      btn.addEventListener('click', () =>
+        handlers.onRun(action.id, { path: entry.fullPath, remoteUrl: remote?.rawUrl ?? null }),
+      );
+    }
+    cell.appendChild(btn);
+  }
+  return cell;
+}
+
+function buildRow(
+  entry: WorkingTreeEntry,
+  remote: Remote,
+  defaultHost: string,
+  isWorktree: boolean,
+  actions: Action[],
+  handlers: RowActionHandlers,
+): HTMLElement {
   const state = deriveRowState(entry);
   const row = el('div', `row${isWorktree ? ' wt' : ''} ${STATE_ROW_CLASS[state]}`);
   row.tabIndex = 0;
@@ -157,8 +205,8 @@ function buildRow(entry: WorkingTreeEntry, remote: Remote, defaultHost: string, 
   nameCell.appendChild(name);
 
   const slug = el('div', 'slug');
-  slug.textContent = remote ? remote.slug : entry.directoryName;
-  if (remote && remote.host !== defaultHost) {
+  slug.textContent = remote && remote.slug ? remote.slug : entry.directoryName;
+  if (remote && remote.host && remote.host !== defaultHost) {
     const host = el('span', 'host ext');
     host.textContent = remote.host;
     slug.appendChild(host);
@@ -175,18 +223,24 @@ function buildRow(entry: WorkingTreeEntry, remote: Remote, defaultHost: string, 
 
   appendText(row, 'num changed', entry.availability === 'ok' ? relativeTime(entry.lastChange) : '—');
 
-  // Reserved layout for the deferred per-repo action kebab (pull/open-in-IDE/etc. — out of scope for this feature).
-  row.appendChild(el('div', 'menu'));
+  row.appendChild(buildMenuCell(entry, remote, actions, handlers));
 
   return row;
 }
 
-export function renderRows(listEl: HTMLElement, rows: Row[], defaultHost: string): void {
+export function renderRows(
+  listEl: HTMLElement,
+  rows: Row[],
+  defaultHost: string,
+  actions: Action[],
+  handlers: RowActionHandlers,
+): void {
   listEl.innerHTML = '';
   for (const row of rows) {
-    listEl.appendChild(buildRow(row, row.remote, defaultHost, false));
+    listEl.appendChild(buildRow(row, row.remote, defaultHost, false, actions, handlers));
     if (row.kind === 'repository') {
-      for (const wt of row.worktrees) listEl.appendChild(buildRow(wt, row.remote, defaultHost, true));
+      // A worktree row inherits its primary's remote for `${2}` (worktree entries carry no remote of their own).
+      for (const wt of row.worktrees) listEl.appendChild(buildRow(wt, row.remote, defaultHost, true, actions, handlers));
     }
   }
 }

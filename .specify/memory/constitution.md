@@ -1,14 +1,24 @@
 <!--
 Sync Impact Report
 ==================
-Version change: 1.2.0 → 1.3.0
-Rationale: Reconcile Principle IV with the approved UI design (MINOR: the
-always-observable intent and colour semantics are retained; the surfacing mechanism
-is refined and extended). State is now shown by a per-row coloured leading-edge
-indicator paired with a mandatory redundant non-colour cue (status glyph + text),
-NOT a full-row background fill; the clean/in-sync state gains an explicit colour
-(green) and an unavailable/timed-out state gains grey. Dirty (blue) still wins over
-out-of-sync (amber). See specs/001-repo-dashboard/design/README.md and FR-028.
+Version change: 1.3.0 → 1.4.0
+Rationale: Reconcile Principle V + Technical Constraints with the custom
+per-repository action launchers feature (MINOR: the local-only, no-telemetry, and
+launch-not-embed intent is retained; the external-target set is reframed from a
+fixed enumeration to user-configured launch commands, with the original five —
+GitHub, IntelliJ, VS Code, Finder, terminal — kept as seeded, editable defaults).
+Adds an argument-safe-substitution mandate: repository-derived values (the row's
+path and remote URL) MUST be passed to launch commands as intact arguments, never
+spliced into command text. See specs/002-custom-action-launchers/spec.md (FR-005,
+FR-012, FR-013).
+
+Prior change (1.2.0 → 1.3.0): reconciled Principle IV with the approved UI design
+(the always-observable intent and colour semantics retained; the surfacing
+mechanism refined and extended) — a per-row coloured leading-edge indicator paired
+with a mandatory redundant non-colour cue (status glyph + text), NOT a full-row
+background fill; clean/in-sync gained green and unavailable/timed-out gained grey;
+dirty (blue) still wins over out-of-sync (amber). See
+specs/001-repo-dashboard/design/README.md and FR-028.
 
 Prior change (1.1.0 → 1.2.0): reconciled Principle IV with the redesigned row model —
 colour scheme "uncommitted = yellow" → "dirty = blue, out-of-sync = yellow" (dirty
@@ -35,6 +45,20 @@ Added sections:
   - Governance
 
 Removed sections: none (template placeholders replaced).
+
+Amendments (1.4.0):
+  - Principle V: the external-target set is reframed from a fixed enumeration
+    (GitHub, IntelliJ, VS Code, Finder, terminal) to user-configured launch
+    commands; those five are retained as seeded, editable defaults. The
+    local-only, no-telemetry, no-app-network, and launch-not-embed constraints
+    are unchanged.
+  - Principle V: added an argument-safe-substitution mandate — repository-derived
+    values (path, remote URL) MUST be passed to launch commands as intact
+    arguments, never spliced into command text (prevents command injection from
+    unusual paths/URLs).
+  - Technical Constraints: the "external integrations are launch-only" bullet now
+    names user-configured launch commands (five seeded defaults) and the
+    argument-safe substitution of path + remote URL.
 
 Amendments (1.3.0):
   - Principle IV: state surfacing redefined from a full-row background fill to a
@@ -135,10 +159,15 @@ accessible.
 
 The application MUST run entirely on the user's machine. It MUST NOT send
 telemetry or make network calls of its own; the only outbound activity permitted
-is git talking to its configured remotes and opening user-invoked external targets
-(GitHub in a browser, IntelliJ, VS Code, Finder, terminal). New runtime
-dependencies MUST be justified against reuse of the platform, the system git, or a
-few lines of code (YAGNI).
+is git talking to its configured remotes and opening user-invoked external targets.
+External targets are user-configured launch commands — the app ships GitHub (in a
+browser), IntelliJ, VS Code, Finder, and the terminal as seeded, editable defaults
+— which the app launches (never embeds) and runs only on an explicit per-row user
+action, never on a timer. Repository-derived values passed to these commands (the
+row's path and remote URL) MUST be substituted as intact arguments, never spliced
+into command text, so repository data can never be interpreted as executable
+command text. New runtime dependencies MUST be justified against reuse of the
+platform, the system git, or a few lines of code (YAGNI).
 
 Rationale: This is a personal local tool. Keeping it offline-by-design removes an
 entire class of privacy and security concerns and keeps the surface small enough
@@ -147,8 +176,11 @@ to trust.
 ## Technical Constraints
 
 - Platform: desktop application (Electron) targeting the user's local OS.
-- External integrations are launch-only: the app resolves and invokes GitHub URLs,
-  IntelliJ, VS Code, Finder, and the default terminal; it does not embed them.
+- External integrations are launch-only: the app resolves and invokes
+  user-configured launch commands — seeded with GitHub URLs, IntelliJ, VS Code,
+  Finder, and the default terminal as editable defaults — passing the repository
+  path and remote URL as argument-safe substitutions; it does not embed the
+  launched tools.
 - Observed directories are user-configured, scanned at startup, and refreshed on
   explicit user demand; discovery MUST tolerate non-repo directories gracefully.
 - Git interaction is via subprocess to the system `git`; parse porcelain/plumbing
@@ -186,4 +218,4 @@ credential handling, or network activity MUST be reviewed against Principles I�
 before merge. Deviations MUST be justified in the plan's Complexity Tracking or
 rejected.
 
-**Version**: 1.3.0 | **Ratified**: 2026-07-16 | **Last Amended**: 2026-07-16
+**Version**: 1.4.0 | **Ratified**: 2026-07-16 | **Last Amended**: 2026-07-17

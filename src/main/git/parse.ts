@@ -57,24 +57,29 @@ export function parseWorktreeList(raw: string): string[] {
 const SCHEME_URL = /^(?:ssh|git|https?):\/\/(?:[^@/]+@)?([^/:]+)(?::\d+)?\/(.+)$/;
 const SCP_LIKE = /^(?:[^@/]+@)?([^:/]+):(.+)$/;
 
-function toRemote(host: string, rawPath: string): Remote {
+function toRemote(host: string, rawPath: string, rawUrl: string): Remote {
   const slug = rawPath.replace(/\/+$/, '').replace(/\.git$/, '').replace(/^\/+/, '');
-  return host && slug ? { host, slug } : null;
+  return host && slug ? { host, slug, rawUrl } : { host: null, slug: null, rawUrl };
 }
 
-/** Parses a `remote.origin.url` value into `{host, slug}` (P5). `null` for no remote or an unparseable form (FR-006/018). */
+/**
+ * Parses a `remote.origin.url` value into a `Remote` (P5). Returns the parsed `{host,slug,rawUrl}`
+ * when recognisable; a present-but-unparseable origin still yields `{host:null,slug:null,rawUrl}` so
+ * `${2}` has a verbatim value (FR-005, research R3). Only a missing origin yields `null` (FR-006/013/018).
+ */
 export function parseRemoteUrl(url: string | null): Remote {
   if (!url) return null;
   const trimmed = url.trim();
+  if (!trimmed) return null;
 
   if (!trimmed.includes('://')) {
     const scp = trimmed.match(SCP_LIKE);
-    if (scp) return toRemote(scp[1]!, scp[2]!);
-    return null;
+    if (scp) return toRemote(scp[1]!, scp[2]!, trimmed);
+    return { host: null, slug: null, rawUrl: trimmed };
   }
 
   const scheme = trimmed.match(SCHEME_URL);
-  if (scheme) return toRemote(scheme[1]!, scheme[2]!);
+  if (scheme) return toRemote(scheme[1]!, scheme[2]!, trimmed);
 
-  return null;
+  return { host: null, slug: null, rawUrl: trimmed };
 }

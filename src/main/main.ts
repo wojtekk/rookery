@@ -1,10 +1,12 @@
 import { app, BrowserWindow, dialog, ipcMain } from 'electron';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
+import * as os from 'node:os';
 import { registerSettingsIpc, loadSettings, saveSettings } from './config';
 import { getGitVersion } from './git/probe';
 import { scanAll } from './scan';
-import type { AddDirectoryResult, Row } from '../shared/types';
+import { launchCommand } from './actions/launch';
+import type { AddDirectoryResult, Row, RunActionResult } from '../shared/types';
 
 let mainWindow: BrowserWindow | null = null;
 let lastSnapshot: Row[] = [];
@@ -21,7 +23,9 @@ function createWindow(): void {
       preload: path.join(__dirname, '..', 'preload', 'preload.js'),
     },
   });
-  mainWindow.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
+  // Renderer builds to its own ESM tree (dist/renderer) so its shared runtime modules don't collide
+  // with the CommonJS copies used by main/tests. From dist/src/main → dist/renderer/src/renderer.
+  mainWindow.loadFile(path.join(__dirname, '..', '..', 'renderer', 'src', 'renderer', 'index.html'));
 }
 
 async function refresh(): Promise<Row[]> {
@@ -52,6 +56,23 @@ async function removeObservedDirectory(dirPath: string): Promise<void> {
   });
 }
 
+// Rows carry a tilde-shortened path for display (scan.ts); reverse it so `${1}` is a real absolute path.
+function expandTilde(p: string): string {
+  if (p === '~') return os.homedir();
+  if (p.startsWith('~/')) return path.join(os.homedir(), p.slice(2));
+  return p;
+}
+
+async function runAction(
+  actionId: string,
+  target: { path: string; remoteUrl: string | null },
+): Promise<RunActionResult> {
+  const settings = await loadSettings();
+  const action = settings.actions.find((a) => a.id === actionId);
+  if (!action) return { ok: false, reason: 'Action not found' };
+  return launchCommand(action.command, expandTilde(target.path), target.remoteUrl);
+}
+
 async function pickDirectory(): Promise<string | null> {
   if (!mainWindow) return null;
   const result = await dialog.showOpenDialog(mainWindow, { properties: ['openDirectory'] });
@@ -66,6 +87,9 @@ function registerIpc(): void {
   ipcMain.handle('removeObservedDirectory', (_e, dirPath: string) => removeObservedDirectory(dirPath));
   ipcMain.handle('pickDirectory', () => pickDirectory());
   ipcMain.handle('getGitStatus', () => getGitVersion());
+  ipcMain.handle('runAction', (_e, actionId: string, target: { path: string; remoteUrl: string | null }) =>
+    runAction(actionId, target),
+  );
 }
 
 app.whenReady().then(() => {

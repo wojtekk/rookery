@@ -258,7 +258,7 @@ body {
 .thead,
 .row {
   display: grid;
-  grid-template-columns: 26px minmax(240px, 1fr) 220px 92px 118px 118px 40px;
+  grid-template-columns: 26px minmax(240px, 1fr) 220px 92px 118px 118px 190px;
   align-items: center;
   gap: 14px;
 }
@@ -278,6 +278,12 @@ body {
 }
 .thead .sortable.active {
   color: var(--fg);
+}
+.thead .num {
+  /* .num (used for row-cell values) sets mono/13px; headers must match the other columns */
+  font-family: inherit;
+  font-size: inherit;
+  white-space: nowrap;
 }
 .arw {
   font-style: normal;
@@ -467,14 +473,54 @@ body {
   margin-right: 2px;
 }
 
-/* reserved kebab slot (deferred per-repo actions — this feature only reserves the layout) */
+/* per-row action icons (FR-004/009/013) — always inline, never an overlay, so nothing can be clipped */
 .menu {
-  position: absolute;
-  right: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 30px;
-  height: 30px;
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+}
+.row-action-ico {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 6px;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+.row-action-ico:hover:not(:disabled) {
+  border-color: var(--line-2);
+  color: var(--fg);
+  background: var(--surface);
+}
+.row-action-ico.disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* transient launch-failure notices (FR-007, SC-004) */
+#notices {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 80;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 380px;
+}
+.notice {
+  padding: 11px 14px;
+  background: var(--surface);
+  border: 1px solid var(--sync-edge);
+  border-left: 3px solid var(--sync);
+  border-radius: 10px;
+  color: var(--fg);
+  font-size: 12.5px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
 }
 
 /* worktree rows */
@@ -517,6 +563,11 @@ body {
   white-space: nowrap;
   z-index: 40;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+/* The menu column sits at the row's right edge — grow the tooltip leftward instead of clipping. */
+.menu [data-tip]:hover::after {
+  left: auto;
+  right: 0;
 }
 
 .foot {
@@ -678,6 +729,183 @@ body {
 }
 .btn.ghost:hover {
   color: var(--fg);
+}
+
+/* settings modal body + sections (dirs + actions) */
+.modal-body {
+  overflow-y: auto;
+  padding: 4px 8px 8px;
+}
+.settings-section {
+  padding: 12px 8px;
+  border-bottom: 1px solid var(--line);
+}
+.settings-section:last-child {
+  border-bottom: none;
+}
+.settings-section > h2 {
+  margin: 0 4px 8px;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.section-hint {
+  margin: 0 4px 10px;
+  color: var(--faint);
+  font-size: 11.5px;
+}
+.section-hint,
+.action-cmd,
+.action-cmd-input {
+  font-family: var(--mono);
+}
+.dir-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 4px 2px;
+}
+
+/* actions list (FR-001/014) */
+.action-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.action-empty {
+  color: var(--faint);
+  font-size: 12.5px;
+  padding: 8px 12px;
+}
+.action-row {
+  display: grid;
+  grid-template-columns: 20px 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 12px;
+  border-radius: 10px;
+}
+.action-row:hover {
+  background: var(--surface-2);
+}
+.action-ico {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  color: var(--muted);
+}
+.action-meta {
+  min-width: 0;
+}
+.action-name {
+  font-size: 13px;
+  color: var(--fg);
+}
+.action-cmd {
+  display: block;
+  font-size: 11.5px;
+  color: var(--muted);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.action-controls {
+  display: flex;
+  gap: 4px;
+}
+.mini {
+  border: 1px solid var(--line-2);
+  background: transparent;
+  color: var(--muted);
+  border-radius: 7px;
+  padding: 4px 8px;
+  font-size: 12px;
+  cursor: pointer;
+  font-family: var(--ui);
+}
+.mini:hover:not(:disabled) {
+  color: var(--fg);
+  border-color: var(--fg);
+}
+.mini:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.mini.danger:hover:not(:disabled) {
+  color: var(--sync);
+  border-color: var(--sync);
+}
+
+/* add / edit form (FR-002) */
+.action-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+.icon-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  width: 100%;
+}
+.icon-opt {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line-2);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.icon-opt:hover {
+  color: var(--fg);
+}
+.icon-opt.selected {
+  border-color: var(--fg);
+  color: var(--fg);
+  background: var(--surface);
+}
+.action-name-input,
+.action-cmd-input {
+  flex: 1;
+  min-width: 140px;
+  padding: 8px 10px;
+  background: var(--void);
+  border: 1px solid var(--line-2);
+  border-radius: 8px;
+  color: var(--fg);
+  font-size: 13px;
+}
+.action-name-input:focus,
+.action-cmd-input:focus {
+  outline: none;
+  border-color: var(--fg);
+}
+.action-form-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+.action-error {
+  color: var(--sync);
+  font-size: 12px;
+}
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  filter: none;
 }
 
 /* entrance animation */

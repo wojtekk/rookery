@@ -33,8 +33,8 @@ function worktree(directoryName: string, local: number, availability: 'ok' | 'un
 
 test('sortRows: slug ascending, no-remote rows fall back to directoryName tie-break', () => {
   const rows = [
-    repo({ directoryName: 'zzz', remote: { host: 'github.com', slug: 'org/zzz' } }),
-    repo({ directoryName: 'aaa', remote: { host: 'github.com', slug: 'org/aaa' } }),
+    repo({ directoryName: 'zzz', remote: { host: 'github.com', slug: 'org/zzz', rawUrl: 'git@github.com:org/zzz.git' } }),
+    repo({ directoryName: 'aaa', remote: { host: 'github.com', slug: 'org/aaa', rawUrl: 'git@github.com:org/aaa.git' } }),
     repo({ directoryName: 'no-remote', remote: null }),
   ];
   const sorted = sortRows(rows, 'slug', 'asc').map((r) => r.directoryName);
@@ -43,8 +43,8 @@ test('sortRows: slug ascending, no-remote rows fall back to directoryName tie-br
 
 test('sortRows: slug ignores owner/organisation, sorts by repository name only', () => {
   const rows = [
-    repo({ directoryName: 'banana-repo', remote: { host: 'github.com', slug: 'aaa-org/banana' } }),
-    repo({ directoryName: 'apple-repo', remote: { host: 'github.com', slug: 'zzz-org/apple' } }),
+    repo({ directoryName: 'banana-repo', remote: { host: 'github.com', slug: 'aaa-org/banana', rawUrl: 'git@github.com:aaa-org/banana.git' } }),
+    repo({ directoryName: 'apple-repo', remote: { host: 'github.com', slug: 'zzz-org/apple', rawUrl: 'git@github.com:zzz-org/apple.git' } }),
   ];
   // Full-slug order would be aaa-org/banana, zzz-org/apple; repo-name order is apple, banana.
   const sorted = sortRows(rows, 'slug', 'asc').map((r) => r.directoryName);
@@ -53,8 +53,8 @@ test('sortRows: slug ignores owner/organisation, sorts by repository name only',
 
 test('sortRows: slug descending reverses order', () => {
   const rows = [
-    repo({ directoryName: 'aaa', remote: { host: 'github.com', slug: 'org/aaa' } }),
-    repo({ directoryName: 'zzz', remote: { host: 'github.com', slug: 'org/zzz' } }),
+    repo({ directoryName: 'aaa', remote: { host: 'github.com', slug: 'org/aaa', rawUrl: 'git@github.com:org/aaa.git' } }),
+    repo({ directoryName: 'zzz', remote: { host: 'github.com', slug: 'org/zzz', rawUrl: 'git@github.com:org/zzz.git' } }),
   ];
   const sorted = sortRows(rows, 'slug', 'desc').map((r) => r.directoryName);
   assert.deepEqual(sorted, ['zzz', 'aaa']);
