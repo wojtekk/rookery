@@ -1,8 +1,17 @@
 <!--
 Sync Impact Report
 ==================
-Version change: 1.3.0 → 1.4.0
-Rationale: Reconcile Principle V + Technical Constraints with the custom
+Version change: 1.4.0 → 1.5.0
+Rationale: Extend Principle II beyond git-ref mutations (pull, branch deletion,
+worktree removal) to name push, branch cleanup, and filesystem-level repository
+deletion explicitly, ahead of a planned destructive-actions feature. Repository
+deletion is codified as a distinct, higher-severity mutation tier (named
+confirmation + an uncommitted/unpushed-work warning) because it destroys the
+directory itself, not just a git ref, and has no git-native recovery path.
+Principle III is extended so a rejected push is treated the same as a failed
+pull: stop and surface, never force or auto-resolve.
+
+Prior change (1.3.0 → 1.4.0): Reconcile Principle V + Technical Constraints with the custom
 per-repository action launchers feature (MINOR: the local-only, no-telemetry, and
 launch-not-embed intent is retained; the external-target set is reframed from a
 fixed enumeration to user-configured launch commands, with the original five —
@@ -45,6 +54,19 @@ Added sections:
   - Governance
 
 Removed sections: none (template placeholders replaced).
+
+Amendments (1.5.0):
+  - Principle II: the mutating-operation list now names push, branch cleanup, and
+    repository deletion explicitly (previously: pull, branch deletion, worktree
+    removal, pull-all). Repository deletion is called out as a distinct,
+    higher-severity tier requiring confirmation that names the repository and an
+    explicit warning when uncommitted or unpushed work exists, since it removes
+    the directory itself rather than a git ref.
+  - Principle III: scope extended from pull to pull and push — a push rejected as
+    non-fast-forward MUST stop and surface the failure, not force-push or
+    auto-merge.
+  - Development Workflow: the mutating-operation runnable-check bullet now names
+    push and repository deletion alongside pull/delete/remove.
 
 Amendments (1.4.0):
   - Principle V: the external-target set is reframed from a fixed enumeration
@@ -110,15 +132,23 @@ on the command line. Shelling out keeps behavior identical to the terminal.
 ### II. Read-Only by Default, Destructive by Explicit Action
 
 Background and on-demand activity (startup scan, manual refresh, fetch) MUST be
-read-only and MUST NOT alter working trees, branches, or history. Every mutating
-operation — pull, branch deletion, worktree removal, pull-all — MUST be triggered
-by a deliberate user action, never on a timer. Bulk and irreversible actions
-(delete branch, remove worktree) MUST be presented one item at a time or require
-explicit per-item confirmation.
+read-only and MUST NOT alter working trees, branches, history, or the filesystem.
+Every mutating operation — pull, push, branch deletion, branch cleanup, worktree
+removal, pull-all, repository deletion — MUST be triggered by a deliberate user
+action, never on a timer. Bulk and irreversible actions (branch cleanup, deleting
+multiple items) MUST be presented one item at a time or require explicit per-item
+confirmation.
+
+Repository deletion is a distinct, higher-severity tier: it removes the directory
+from disk, not just a git ref, and can destroy uncommitted or unpushed work. It
+MUST require confirmation that names the repository being deleted (not a generic
+"are you sure?") and MUST warn explicitly when the repository has uncommitted
+changes or unpushed commits at the time of deletion.
 
 Rationale: A repo dashboard that silently mutates state is a footgun. The user's
 requirements draw a firm line between observing (automatic) and changing
-(explicit); the constitution makes that line non-negotiable.
+(explicit); disk deletion sits above other mutations because, unlike a branch or
+worktree, a deleted repository with unpushed work has no git-native recovery path.
 
 ### III. Never Resolve Conflicts — Fail Loud, Hand Off
 
@@ -126,7 +156,9 @@ The application MUST NOT attempt to resolve merge conflicts or perform interacti
 merge/rebase resolution. Pull-all MUST use `--autostash`; when a pull cannot
 complete cleanly, the operation MUST stop for that repository, leave the repo in a
 state the user can inspect, mark it as failed (light red), and direct the user to a
-dedicated merge tool.
+dedicated merge tool. The same fail-loud rule applies to push: a push rejected as
+non-fast-forward (remote has diverged) MUST stop and surface the failure, never
+force-push or attempt to auto-merge/rebase on the user's behalf.
 
 Rationale: Conflict resolution is a high-stakes, context-dependent task. A
 management dashboard that guesses will corrupt work. Stopping and signalling is
@@ -193,8 +225,8 @@ to trust.
 
 - Changes MUST be surgical and match existing style; no unrequested refactors of
   adjacent code.
-- Any code that mutates repository state (pull, delete, remove) MUST leave at least
-  one runnable check that fails if the guard or safety behavior breaks.
+- Any code that mutates repository state (pull, push, delete, remove) MUST leave at
+  least one runnable check that fails if the guard or safety behavior breaks.
 - A change that touches a mutating operation MUST be manually exercised against a
   real repository (including at least one conflict/failure path) before it is
   considered done.
@@ -218,4 +250,4 @@ credential handling, or network activity MUST be reviewed against Principles I�
 before merge. Deviations MUST be justified in the plan's Complexity Tracking or
 rejected.
 
-**Version**: 1.4.0 | **Ratified**: 2026-07-16 | **Last Amended**: 2026-07-17
+**Version**: 1.5.0 | **Ratified**: 2026-07-16 | **Last Amended**: 2026-07-17
