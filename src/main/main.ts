@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, nativeImage } from 'electron';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import * as os from 'node:os';
@@ -11,11 +11,14 @@ import type { AddDirectoryResult, Row, RunActionResult } from '../shared/types';
 let mainWindow: BrowserWindow | null = null;
 let lastSnapshot: Row[] = [];
 
+const iconPath = path.join(__dirname, '..', '..', 'assets', 'icon.png');
+
 function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 860,
     backgroundColor: '#0F1218',
+    icon: iconPath,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -93,6 +96,7 @@ function registerIpc(): void {
 }
 
 app.whenReady().then(() => {
+  if (process.platform === 'darwin') app.dock?.setIcon(nativeImage.createFromPath(iconPath));
   registerIpc();
   createWindow();
 });
