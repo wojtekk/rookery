@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { RepoDashboardApi, Settings } from '../shared/types';
+import type { Action, RepoDashboardApi, Settings } from '../shared/types';
 
 const api: RepoDashboardApi = {
   listRepositories: () => ipcRenderer.invoke('listRepositories'),
@@ -16,6 +16,10 @@ const api: RepoDashboardApi = {
   onScanProgress: (cb: (done: number, total: number) => void) => {
     ipcRenderer.on('scanProgress', (_event, done: number, total: number) => cb(done, total));
   },
+  getActions: () => ipcRenderer.invoke('getActions'),
+  setActions: (actions: Action[]) => ipcRenderer.invoke('setActions', actions),
+  runAction: (actionId: string, target: { path: string; remoteUrl: string | null }) =>
+    ipcRenderer.invoke('runAction', actionId, target),
 };
 
 contextBridge.exposeInMainWorld('repoDashboard', api);

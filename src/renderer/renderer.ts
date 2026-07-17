@@ -38,7 +38,24 @@ let settings: Settings = {
   sortDirection: 'asc',
   showWorktrees: true,
   defaultHost: 'github.com',
+  actions: [],
 };
+
+/** Transient, non-blocking notice (bottom-right toast); auto-dismisses. Used for launch failures (FR-007). */
+function showNotice(message: string): void {
+  let host = document.getElementById('notices');
+  if (!host) {
+    host = document.createElement('div');
+    host.id = 'notices';
+    document.body.appendChild(host);
+  }
+  const toast = document.createElement('div');
+  toast.className = 'notice';
+  toast.setAttribute('role', 'alert');
+  toast.textContent = message;
+  host.appendChild(toast);
+  setTimeout(() => toast.remove(), 6000);
+}
 let stateFilter: StateFilter = 'all';
 let refreshing = false;
 
@@ -78,7 +95,14 @@ function render(): void {
 
   const sorted = sortRows(rows, settings.sortDimension, settings.sortDirection);
   const visible = filterRows(sorted, stateFilter, settings.showWorktrees);
-  renderRows(els.list, visible, settings.defaultHost);
+  renderRows(els.list, visible, settings.defaultHost, settings.actions, {
+    onRun: (actionId, target) => {
+      const action = settings.actions.find((a) => a.id === actionId);
+      void api.runAction(actionId, target).then((res) => {
+        if (!res.ok) showNotice(`${action?.name ?? 'Action'} failed on ${target.path}: ${res.reason}`);
+      });
+    },
+  });
 
   els.list.hidden = rows.length === 0;
   els.empty.hidden = rows.length > 0;
@@ -89,7 +113,7 @@ function render(): void {
     });
   }
 
-  renderSettingsModal(els.settingsModal, settings.observedDirectories, {
+  renderSettingsModal(els.settingsModal, settings.observedDirectories, settings.actions, {
     onAdd: (path) => api.addObservedDirectory(path),
     onRemove: (path) => api.removeObservedDirectory(path),
     onPick: () => api.pickDirectory(),
@@ -100,6 +124,15 @@ function render(): void {
       })();
     },
     onClose: () => render(),
+    onSetActions: (actions) => api.setActions(actions),
+    onActionsChanged: () => {
+      // Actions changed — reload settings and re-render so the ⋮ menus and the list update (FR-008).
+      // No repo re-scan needed (the row data is unchanged).
+      void (async () => {
+        settings = await api.getSettings();
+        render();
+      })();
+    },
   });
 
   els.footLeft.textContent = `Showing ${visible.length} of ${rows.length} · grouped by primary`;

@@ -7,7 +7,7 @@ export type SortDirection = 'asc' | 'desc';
 
 /** Repository name only (last path segment of slug) — host/owner are excluded so sort ignores organisation. */
 function slugKey(row: Row): string {
-  if (!row.remote) return '';
+  if (!row.remote || !row.remote.slug) return '';
   const segments = row.remote.slug.split('/');
   return segments[segments.length - 1] ?? '';
 }

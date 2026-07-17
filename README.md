@@ -32,6 +32,17 @@ the full task breakdown and what's done vs. pending.
 Until directory management ships, observed directories are configured by
 hand in the settings file (see [Running it locally](#running-it-locally)).
 
+### Custom action launchers (feature 002)
+
+Each repository row has a **⋮ menu of configurable launchers** — open the repo in
+your editor, on its GitHub page, in Finder or a terminal, etc. Actions are managed
+in Settings (icon + name + command) and seeded with sensible defaults on first run.
+A command is a template run through your login shell, with the row's path (`${1}`)
+and raw remote URL (`${2}`) passed as **shell positional parameters** — never spliced
+into the command text — so repository values can't be interpreted as commands
+(Constitution v1.4.0). See
+[`specs/002-custom-action-launchers/`](specs/002-custom-action-launchers/).
+
 ## Top-level architecture
 
 Standard Electron three-context split, plus a `shared/` module for the types
