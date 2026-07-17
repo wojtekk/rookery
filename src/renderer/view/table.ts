@@ -10,6 +10,7 @@ import type { SortDimension, SortDirection } from './sort.js';
 /** Row-level launch target the renderer forwards to `runAction` (path is the tilde form; main expands it). */
 export interface RowActionHandlers {
   onRun: (actionId: string, target: { path: string; remoteUrl: string | null }) => void;
+  onDelete: (target: { path: string; isWorktree: boolean }) => void;
 }
 
 const STATE_ROW_CLASS: Record<RowState, string> = {
@@ -172,6 +173,18 @@ function buildMenuCell(
   return cell;
 }
 
+// Always-visible delete icon (004 FR-001) — its own fixed cell, separate from the
+// user-configurable .menu, so it renders on every row regardless of actions.length.
+function buildDeleteCell(entry: WorkingTreeEntry, isWorktree: boolean, handlers: RowActionHandlers): HTMLElement {
+  const btn = el('button', 'row-delete-ico');
+  btn.type = 'button';
+  btn.textContent = '×';
+  btn.setAttribute('aria-label', 'Delete');
+  btn.setAttribute('data-tip', 'Delete');
+  btn.addEventListener('click', () => handlers.onDelete({ path: entry.fullPath, isWorktree }));
+  return btn;
+}
+
 function buildRow(
   entry: WorkingTreeEntry,
   remote: Remote,
@@ -224,6 +237,7 @@ function buildRow(
   appendText(row, 'num changed', entry.availability === 'ok' ? relativeTime(entry.lastChange) : '—');
 
   row.appendChild(buildMenuCell(entry, remote, actions, handlers));
+  row.appendChild(buildDeleteCell(entry, isWorktree, handlers));
 
   return row;
 }

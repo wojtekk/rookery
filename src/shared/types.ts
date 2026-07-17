@@ -72,6 +72,15 @@ export type GitStatus =
 
 export type AddDirectoryResult = { ok: true } | { ok: false; reason: string };
 
+// What the renderer sends to identify exactly which row to delete (004 data-model.md).
+// `isWorktree` alone selects the removal path — no "primary path" needed (research R2).
+export interface DeleteTarget {
+  path: string;
+  isWorktree: boolean;
+}
+
+export type DeleteOutcome = { outcome: 'deleted' } | { outcome: 'cancelled' } | { outcome: 'failed'; reason: string };
+
 // The typed surface exposed via contextBridge as `window.repoDashboard`. See contracts/ipc-api.md.
 export interface RepoDashboardApi {
   listRepositories(): Promise<Row[]>;
@@ -88,4 +97,5 @@ export interface RepoDashboardApi {
   getActions(): Promise<Action[]>;
   setActions(actions: Action[]): Promise<void>;
   runAction(actionId: string, target: { path: string; remoteUrl: string | null }): Promise<RunActionResult>;
+  deleteRow(target: DeleteTarget): Promise<DeleteOutcome>;
 }

@@ -1,12 +1,13 @@
-import { app, BrowserWindow, dialog, ipcMain, nativeImage } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, nativeImage, shell } from 'electron';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import { registerSettingsIpc, loadSettings, saveSettings } from './config';
-import { getGitVersion } from './git/probe';
+import { getGitVersion, probeRemoteUrl, runGit } from './git/probe';
 import { scanAll } from './scan';
 import { launchCommand } from './actions/launch';
-import type { AddDirectoryResult, Row, RunActionResult } from '../shared/types';
+import { computeDeleteRisk } from './delete';
+import type { AddDirectoryResult, DeleteOutcome, DeleteTarget, Row, RunActionResult } from '../shared/types';
 
 let mainWindow: BrowserWindow | null = null;
 let lastSnapshot: Row[] = [];
@@ -82,6 +83,71 @@ async function pickDirectory(): Promise<string | null> {
   return result.canceled ? null : (result.filePaths[0] ?? null);
 }
 
+async function pathExists(target: string): Promise<boolean> {
+  try {
+    await fs.stat(target);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Owns the entire user-facing delete flow (contracts/delete.md): at most two native
+ * confirmations, a fresh risk check between them (computeDeleteRisk, delete.ts), then removal.
+ * Everything from the first confirmation onward is one try/catch — a target that vanishes at
+ * any point (risk check or removal) resolves as a successful deletion rather than a stale-state
+ * error (spec.md Edge Case "Row disappears during confirmation" / "Directory already gone").
+ */
+async function deleteRow(rawTarget: DeleteTarget): Promise<DeleteOutcome> {
+  if (!mainWindow) return { outcome: 'failed', reason: 'No window available' };
+  const target: DeleteTarget = { ...rawTarget, path: expandTilde(rawTarget.path) };
+  const dirName = path.basename(target.path);
+
+  const choice1 = await dialog.showMessageBox(mainWindow, {
+    type: 'warning',
+    buttons: ['Cancel', 'Delete'],
+    defaultId: 0,
+    cancelId: 0,
+    message: `Delete "${dirName}"?`,
+    detail: target.isWorktree
+      ? 'This removes the worktree and its files.'
+      : 'This moves the directory to the trash (or deletes it permanently if trash is unavailable).',
+  });
+  if (choice1.response !== 1) return { outcome: 'cancelled' };
+
+  try {
+    const hasRemote = (await probeRemoteUrl(target.path)) !== null;
+    const risk = await computeDeleteRisk(target.path, hasRemote);
+
+    if (risk.atRisk) {
+      const choice2 = await dialog.showMessageBox(mainWindow, {
+        type: 'warning',
+        buttons: ['Cancel', 'Delete Anyway'],
+        defaultId: 0,
+        cancelId: 0,
+        message: 'This action is destructive and cannot be reversed.',
+        detail: risk.reasons.map((r) => `• ${r}`).join('\n'),
+      });
+      if (choice2.response !== 1) return { outcome: 'cancelled' };
+    }
+
+    if (target.isWorktree) {
+      await runGit(['-C', target.path, 'worktree', 'remove', target.path, '--force'], path.dirname(target.path));
+    } else {
+      try {
+        await shell.trashItem(target.path);
+      } catch {
+        await fs.rm(target.path, { recursive: true, force: true });
+      }
+    }
+    return { outcome: 'deleted' };
+  } catch (err) {
+    if (!(await pathExists(target.path))) return { outcome: 'deleted' };
+    return { outcome: 'failed', reason: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 function registerIpc(): void {
   registerSettingsIpc();
   ipcMain.handle('listRepositories', () => lastSnapshot);
@@ -93,6 +159,7 @@ function registerIpc(): void {
   ipcMain.handle('runAction', (_e, actionId: string, target: { path: string; remoteUrl: string | null }) =>
     runAction(actionId, target),
   );
+  ipcMain.handle('deleteRow', (_e, target: DeleteTarget) => deleteRow(target));
 }
 
 app.whenReady().then(() => {

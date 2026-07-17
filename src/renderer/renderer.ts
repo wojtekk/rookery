@@ -107,6 +107,11 @@ function render(): void {
         if (!res.ok) showNotice(`${action?.name ?? 'Action'} failed on ${target.path}: ${res.reason}`);
       });
     },
+    // deleteRow owns its own dialogs/errors (main-process, native) — the renderer just refreshes
+    // afterward regardless of outcome; a cancelled/failed delete simply re-reports the row unchanged.
+    onDelete: (target) => {
+      void api.deleteRow(target).then(() => doRefresh());
+    },
   });
 
   const hasDirectories = settings.observedDirectories.length > 0;

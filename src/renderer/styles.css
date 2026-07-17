@@ -251,7 +251,7 @@ body {
 .thead,
 .row {
   display: grid;
-  grid-template-columns: 26px minmax(240px, 1fr) 220px 92px 118px 118px 190px;
+  grid-template-columns: 26px minmax(240px, 1fr) 220px 92px 118px 118px 190px 32px;
   align-items: center;
   gap: 14px;
 }
@@ -492,6 +492,27 @@ body {
 .row-action-ico.disabled {
   opacity: 0.35;
   cursor: not-allowed;
+}
+
+/* always-visible per-row delete icon (004 FR-001) — its own fixed rightmost column, distinct
+   from the user-configurable .menu, so it never disappears when actions.length === 0 */
+.row-delete-ico {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 6px;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  justify-self: end;
+}
+.row-delete-ico:hover {
+  border-color: #e5484d;
+  color: #e5484d;
+  background: var(--surface);
 }
 
 /* transient launch-failure notices (FR-007, SC-004) */
@@ -971,7 +992,7 @@ body {
 @media (max-width: 920px) {
   .thead,
   .row {
-    grid-template-columns: 24px minmax(160px, 1fr) 96px 44px;
+    grid-template-columns: 24px minmax(160px, 1fr) 96px 44px 32px;
   }
   .branch-cell,
   .num.changed,
