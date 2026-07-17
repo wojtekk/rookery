@@ -8,6 +8,8 @@ import { renderSummary } from './view/summary.js';
 import { renderToolbar } from './view/toolbar.js';
 import { renderEmptyState } from './view/empty.js';
 import { renderSettingsModal, openSettingsModal } from './view/settings.js';
+import { decideStartupScreen, remainingMinVisibleMs, LOADER_SHOW_DELAY_MS, type LoadState } from './view/loadstate.js';
+import { setLoaderVisible } from './view/loader.js';
 
 declare global {
   interface Window {
@@ -25,6 +27,7 @@ const els = {
   thead: document.getElementById('thead') as HTMLElement,
   list: document.getElementById('list') as HTMLElement,
   empty: document.getElementById('empty') as HTMLElement,
+  loader: document.getElementById('loader') as HTMLElement,
   gitWarning: document.getElementById('gitWarning') as HTMLElement,
   settingsModal: document.getElementById('settingsModal') as HTMLElement,
   footLeft: document.getElementById('footLeft') as HTMLElement,
@@ -58,6 +61,8 @@ function showNotice(message: string): void {
 }
 let stateFilter: StateFilter = 'all';
 let refreshing = false;
+let loadState: LoadState = 'loading';
+let loaderShownAt: number | null = null;
 
 async function doRefresh(): Promise<void> {
   if (refreshing) return;
@@ -104,10 +109,13 @@ function render(): void {
     },
   });
 
+  const hasDirectories = settings.observedDirectories.length > 0;
+  const screen = decideStartupScreen(loadState, hasDirectories);
   els.list.hidden = rows.length === 0;
-  els.empty.hidden = rows.length > 0;
-  if (rows.length === 0) {
-    renderEmptyState(els.empty, settings.observedDirectories.length > 0, () => {
+  const showEmpty = rows.length === 0 && screen !== 'loader';
+  els.empty.hidden = !showEmpty;
+  if (showEmpty) {
+    renderEmptyState(els.empty, hasDirectories, () => {
       openSettingsModal();
       render();
     });
@@ -162,9 +170,31 @@ wireSortHeaders(els.thead, (dimension) => {
 
 void (async () => {
   await checkGitStatus();
-  settings = await api.getSettings();
-  rows = await api.listRepositories();
-  render();
-  rows = await api.refresh(); // startup performs an implicit refresh (ipc-api.md)
-  render();
+  let showLoaderTimer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    settings = await api.getSettings();
+    render(); // first paint: add-directory screen if no directories configured, else nothing yet (loader pending)
+
+    if (settings.observedDirectories.length > 0) {
+      showLoaderTimer = setTimeout(() => {
+        loaderShownAt = Date.now();
+        setLoaderVisible(els.loader, true);
+      }, LOADER_SHOW_DELAY_MS);
+    }
+
+    rows = await api.listRepositories();
+    rows = await api.refresh(); // startup performs an implicit refresh (ipc-api.md); loadState stays 'loading' across both calls
+  } catch {
+    showNotice('Failed to load repositories.');
+  } finally {
+    clearTimeout(showLoaderTimer);
+    const finish = () => {
+      loadState = 'ready';
+      setLoaderVisible(els.loader, false);
+      render();
+    };
+    const wait = remainingMinVisibleMs(loaderShownAt, Date.now());
+    if (wait > 0) setTimeout(finish, wait);
+    else finish();
+  }
 })();
