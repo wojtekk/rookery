@@ -214,6 +214,9 @@ body {
 .sw-dead {
   background: var(--dead);
 }
+.sw-fail {
+  background: var(--fail);
+}
 
 .sumbar {
   height: 10px;

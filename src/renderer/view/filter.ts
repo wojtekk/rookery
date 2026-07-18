@@ -2,7 +2,10 @@
 
 import type { Row, RowState, WorkingTreeEntry } from '../../shared/types';
 
-export type StateFilter = RowState | 'all';
+// 'failed' is a sibling of 'all', not a RowState member: it reflects the outcome of the last
+// "Pull all" attempt (an event), not git-derived state, so it never participates in
+// deriveRowState or any Record<RowState, ...> map (007 data-model.md).
+export type StateFilter = RowState | 'all' | 'failed';
 
 /** Pure function of (availability, local, head) — never stored (data-model.md). Dirty wins over out-of-sync (FR-028). */
 export function deriveRowState(entry: WorkingTreeEntry): RowState {
@@ -15,27 +18,37 @@ export function deriveRowState(entry: WorkingTreeEntry): RowState {
   return 'clean';
 }
 
+/** Whether one entry matches the active filter — 'failed' checks failedPaths membership, not RowState (007 data-model.md). */
+function matches(entry: WorkingTreeEntry, stateFilter: StateFilter, failedPaths: ReadonlySet<string>): boolean {
+  if (stateFilter === 'all') return true;
+  if (stateFilter === 'failed') return failedPaths.has(entry.fullPath);
+  return deriveRowState(entry) === stateFilter;
+}
+
 /**
  * Applies the state filter (FR-029) and worktree visibility (FR-024). A primary is shown when it
  * matches the filter itself, or a worktree beneath it does (surfacing the family); a worktree is
  * shown only when worktrees are on, its family is shown, and it matches the filter itself.
  */
-export function filterRows(rows: Row[], stateFilter: StateFilter, showWorktrees: boolean): Row[] {
+export function filterRows(
+  rows: Row[],
+  stateFilter: StateFilter,
+  showWorktrees: boolean,
+  failedPaths: Set<string> = new Set(),
+): Row[] {
   const result: Row[] = [];
 
   for (const row of rows) {
     if (row.kind === 'orphan-worktree') {
-      if (stateFilter === 'all' || deriveRowState(row) === stateFilter) result.push(row);
+      if (matches(row, stateFilter, failedPaths)) result.push(row);
       continue;
     }
 
-    const ownMatches = stateFilter === 'all' || deriveRowState(row) === stateFilter;
-    const childMatches = showWorktrees && row.worktrees.some((w) => deriveRowState(w) === stateFilter);
+    const ownMatches = matches(row, stateFilter, failedPaths);
+    const childMatches = showWorktrees && row.worktrees.some((w) => matches(w, stateFilter, failedPaths));
     if (!ownMatches && !childMatches) continue;
 
-    const worktrees = showWorktrees
-      ? row.worktrees.filter((w) => stateFilter === 'all' || deriveRowState(w) === stateFilter)
-      : [];
+    const worktrees = showWorktrees ? row.worktrees.filter((w) => matches(w, stateFilter, failedPaths)) : [];
     result.push({ ...row, worktrees });
   }
 

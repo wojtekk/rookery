@@ -35,6 +35,7 @@ export function renderSummary(
   rows: Row[],
   activeFilter: StateFilter,
   onFilterChange: (filter: StateFilter) => void,
+  failedPaths: Set<string> = new Set(),
 ): void {
   const counts: Record<RowState, number> = { clean: 0, dirty: 0, 'out-of-sync': 0, unavailable: 0 };
   for (const row of rows) counts[deriveRowState(row)] += 1;
@@ -49,6 +50,12 @@ export function renderSummary(
       makeChip(LABELS[state], counts[state], activeFilter === state, () => onFilterChange(state), SWATCH_CLASS[state]),
     );
   }
+  // 'failed' is not a RowState (007 data-model.md R1): its count comes from failedPaths, not the
+  // per-state tally above, and it's deliberately excluded from the sumbar segments below (R2) —
+  // a failed repo usually overlaps an existing state, so counting it there would double-count rows.
+  els.filters.appendChild(
+    makeChip('failed', failedPaths.size, activeFilter === 'failed', () => onFilterChange('failed'), 'sw-fail'),
+  );
 
   els.sumbar.innerHTML = '';
   els.sumbar.title = STATES.map((s) => `${counts[s]} ${LABELS[s]}`).join(' · ');

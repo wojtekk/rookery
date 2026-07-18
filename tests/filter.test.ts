@@ -94,3 +94,37 @@ test('filterRows: orphan-worktree rows filter by their own state (no children to
   assert.deepEqual(filterRows([orphan], 'dirty', true).map((r) => r.directoryName), ['orphan']);
   assert.deepEqual(filterRows([orphan], 'clean', true), []);
 });
+
+test("filterRows: 'failed' matches by failedPaths membership, not RowState — others are excluded", () => {
+  const rows = [repo('a'), repo('b')];
+  const failedPaths = new Set(['/repos/a']);
+  const result = filterRows(rows, 'failed', true, failedPaths);
+  assert.deepEqual(result.map((r) => r.directoryName), ['a']);
+});
+
+test("filterRows: 'failed' surfaces a family when only a hidden worktree's path is in failedPaths", () => {
+  const rows = [repo('clean-primary', { local: 0 }, [entry({ directoryName: 'failed-wt', fullPath: '/repos/failed-wt' })])];
+  const failedPaths = new Set(['/repos/failed-wt']);
+  const result = filterRows(rows, 'failed', true, failedPaths) as Array<Row & { worktrees: WorkingTreeEntry[] }>;
+  assert.equal(result.length, 1);
+  assert.deepEqual(
+    result[0]!.worktrees.map((w) => w.directoryName),
+    ['failed-wt'],
+  );
+});
+
+test("filterRows: 'failed' matches an orphan-worktree directly", () => {
+  const orphan: Row = { kind: 'orphan-worktree', ...entry({ directoryName: 'orphan', fullPath: '/repos/orphan' }), remote: null };
+  assert.deepEqual(filterRows([orphan], 'failed', true, new Set(['/repos/orphan'])).map((r) => r.directoryName), ['orphan']);
+});
+
+test("filterRows: 'failed' with an empty failedPaths set returns nothing", () => {
+  const rows = [repo('a'), repo('b')];
+  assert.deepEqual(filterRows(rows, 'failed', true, new Set()), []);
+});
+
+test('filterRows: omitting the failedPaths argument behaves exactly as before 007 (default-parameter regression guard)', () => {
+  const rows = [repo('a', { local: 3 }), repo('b', { local: 0 })];
+  assert.deepEqual(filterRows(rows, 'dirty', true).map((r) => r.directoryName), ['a']);
+  assert.deepEqual(filterRows(rows, 'failed', true), []);
+});

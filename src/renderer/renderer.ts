@@ -121,12 +121,13 @@ function render(): void {
       stateFilter = filter;
       render();
     },
+    failedPaths,
   );
 
   updateSortIndicator(els.thead, settings.sortDimension, settings.sortDirection);
 
   const sorted = sortRows(rows, settings.sortDimension, settings.sortDirection);
-  const visible = filterRows(sorted, stateFilter, settings.showWorktrees);
+  const visible = filterRows(sorted, stateFilter, settings.showWorktrees, failedPaths);
   renderRows(els.list, visible, settings.defaultHost, settings.actions, {
     onRun: (actionId, target) => {
       const action = settings.actions.find((a) => a.id === actionId);
