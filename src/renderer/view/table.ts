@@ -214,7 +214,9 @@ function buildRow(
   const nameCell = el('div', 'name-cell');
   const name = el('div', 'name');
   name.setAttribute('data-tip', entry.fullPath);
-  name.textContent = entry.directoryName;
+  const dirName = el('span', 'dirname');
+  dirName.textContent = entry.directoryName;
+  name.appendChild(dirName);
   if (entry.collisionFragment) {
     name.appendChild(document.createTextNode(' '));
     const frag = el('span', 'frag');

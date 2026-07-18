@@ -384,7 +384,14 @@ body {
   align-items: baseline;
   gap: 8px;
 }
+.name .dirname {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .name .frag {
+  flex-shrink: 0;
   color: var(--faint);
   font-weight: 400;
   font-size: 12px;
@@ -394,6 +401,9 @@ body {
   font-size: 11.5px;
   color: var(--muted);
   margin-top: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .host.ext {
   display: block;
@@ -418,6 +428,9 @@ body {
   font-size: 11px;
   color: var(--muted);
   margin-top: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .tag {
   font-size: 10px;
