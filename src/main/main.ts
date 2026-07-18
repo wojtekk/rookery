@@ -95,13 +95,22 @@ async function pathExists(target: string): Promise<boolean> {
 /**
  * Owns the entire user-facing delete flow (contracts/delete.md): at most two native
  * confirmations, a fresh risk check between them (computeDeleteRisk, delete.ts), then removal.
- * Everything from the first confirmation onward is one try/catch — a target that vanishes at
+ * A worktree whose directory is already missing skips the risk check entirely (005: nothing
+ * local left to lose) and deregisters directly against its family repository. Otherwise,
+ * everything from the first confirmation onward is one try/catch — a target that vanishes at
  * any point (risk check or removal) resolves as a successful deletion rather than a stale-state
  * error (spec.md Edge Case "Row disappears during confirmation" / "Directory already gone").
  */
 async function deleteRow(rawTarget: DeleteTarget): Promise<DeleteOutcome> {
   if (!mainWindow) return { outcome: 'failed', reason: 'No window available' };
-  const target: DeleteTarget = { ...rawTarget, path: expandTilde(rawTarget.path) };
+  // Every path crossing the IPC boundary is tilde-shortened for display (scan.ts). Expand BOTH the
+  // target and its familyPath: the latter becomes `git -C <cwd>`, and child_process treats `~` as a
+  // literal dir (only a shell expands it), so an unexpanded familyPath makes git fail with exit 128.
+  const target: DeleteTarget = {
+    ...rawTarget,
+    path: expandTilde(rawTarget.path),
+    familyPath: rawTarget.familyPath ? expandTilde(rawTarget.familyPath) : undefined,
+  };
   const dirName = path.basename(target.path);
 
   const choice1 = await dialog.showMessageBox(mainWindow, {
@@ -115,6 +124,24 @@ async function deleteRow(rawTarget: DeleteTarget): Promise<DeleteOutcome> {
       : 'This moves the directory to the trash (or deletes it permanently if trash is unavailable).',
   });
   if (choice1.response !== 1) return { outcome: 'cancelled' };
+
+  // 005: a worktree whose directory is already gone has nothing left to lose locally, so the
+  // live risk-check probes (which need the directory to exist) are skipped entirely — single
+  // confirmation, deregister directly against the family repository (contracts/delete.md).
+  if (target.isWorktree && !(await pathExists(target.path))) {
+    if (!target.familyPath) {
+      return {
+        outcome: 'failed',
+        reason: 'Cannot remove: worktree directory is missing and its family repository is unknown.',
+      };
+    }
+    try {
+      await runGit(['-C', target.familyPath, 'worktree', 'remove', target.path, '--force'], target.familyPath);
+      return { outcome: 'deleted' };
+    } catch (err) {
+      return { outcome: 'failed', reason: err instanceof Error ? err.message : String(err) };
+    }
+  }
 
   try {
     const hasRemote = (await probeRemoteUrl(target.path)) !== null;

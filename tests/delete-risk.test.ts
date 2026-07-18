@@ -9,7 +9,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { computeDeleteRisk } from '../src/main/delete';
-import { probeRemoteUrl } from '../src/main/git/probe';
+import { probeRemoteUrl, runGit } from '../src/main/git/probe';
 
 function git(root: string, args: string[]): void {
   execFileSync('git', ['-C', root, ...args]);
@@ -113,5 +113,46 @@ test('computeDeleteRisk: dirty AND no-remote together → at risk with both reas
     const result = await computeDeleteRisk(work, false);
     assert.equal(result.atRisk, true);
     assert.deepEqual(result.reasons, ['has no remote configured', 'has uncommitted changes that will be lost']);
+  });
+});
+
+// 005 research.md R1/R2: proves the actual removal mechanism this feature relies on — anchoring
+// at the family repository (`-C familyPath`) works even once the worktree's own directory is
+// gone, unlike `-C target.path` (004's existing call), which requires target.path to exist.
+test('git -C familyPath worktree remove <goneTarget> --force deregisters a worktree whose directory is already deleted', async () => {
+  await withTmp(async (root) => {
+    const family = path.join(root, 'family');
+    initRepo(family);
+    const linked = path.join(root, 'linked');
+    git(family, ['worktree', 'add', linked, '-b', 'linked-branch']);
+
+    fs.rmSync(linked, { recursive: true, force: true });
+
+    await runGit(['-C', family, 'worktree', 'remove', linked, '--force'], family);
+
+    const list = await runGit(['-C', family, 'worktree', 'list', '--porcelain'], family);
+    assert.equal(list.includes(linked), false);
+  });
+});
+
+// 005 regression: familyPath crosses the IPC boundary tilde-shortened (scan.ts). deleteRow must
+// expand it before `git -C`, because git/child_process treat `~` as a literal directory (only a
+// shell expands it). A tilde-form family path fails to change directory (exit 128); the expanded
+// form removes the worktree. Guards against dropping the expandTilde(familyPath) call in main.ts.
+test('git -C worktree remove needs an expanded (not tilde) family path', async () => {
+  await withTmp(async (root) => {
+    const family = path.join(root, 'family');
+    initRepo(family);
+    const linked = path.join(root, 'linked');
+    git(family, ['worktree', 'add', linked, '-b', 'linked-branch']);
+    fs.rmSync(linked, { recursive: true, force: true });
+
+    // A literal "~/..." family path — what the renderer sends unexpanded — cannot be a valid cwd.
+    await assert.rejects(runGit(['-C', '~/nope/family', 'worktree', 'remove', linked, '--force'], '~/nope/family'));
+
+    // The expanded absolute path succeeds and deregisters the gone worktree.
+    await runGit(['-C', family, 'worktree', 'remove', linked, '--force'], family);
+    const list = await runGit(['-C', family, 'worktree', 'list', '--porcelain'], family);
+    assert.equal(list.includes(linked), false);
   });
 });
