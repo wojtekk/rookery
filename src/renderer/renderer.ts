@@ -2,7 +2,7 @@
 
 import type { Row, Settings, RepoDashboardApi, UpdateResult } from '../shared/types';
 import { sortRows } from './view/sort.js';
-import { filterRows, type StateFilter } from './view/filter.js';
+import { deriveRowState, filterRows, type StateFilter } from './view/filter.js';
 import { renderRows, updateSortIndicator, wireSortHeaders } from './view/table.js';
 import { renderSummary } from './view/summary.js';
 import { renderToolbar } from './view/toolbar.js';
@@ -66,11 +66,31 @@ let failedPaths = new Set<string>(); // paths with result 'failed' from the last
 let loadState: LoadState = 'loading';
 let loaderShownAt: number | null = null;
 
-async function doRefresh(): Promise<void> {
+// A manual refresh re-reads local git state only (Principle II — no fetch), so it can only prove a
+// failed repo was fixed when that fix is itself locally visible (e.g. the user resolved the
+// divergence/conflict themselves). ponytail: a failure whose repo already looked clean before "Pull
+// all" (e.g. pure network/auth failure) will also be cleared by this — only a re-run of "Pull all"
+// can truly confirm a fetch succeeds.
+function pruneFixedFailedPaths(): void {
+  if (failedPaths.size === 0) return;
+  const stillFailed = new Set<string>();
+  for (const row of rows) {
+    if (failedPaths.has(row.fullPath) && deriveRowState(row) !== 'clean') stillFailed.add(row.fullPath);
+    if (row.kind === 'repository') {
+      for (const wt of row.worktrees) {
+        if (failedPaths.has(wt.fullPath) && deriveRowState(wt) !== 'clean') stillFailed.add(wt.fullPath);
+      }
+    }
+  }
+  failedPaths = stillFailed;
+}
+
+async function doRefresh(opts: { pruneFixedFailed?: boolean } = {}): Promise<void> {
   if (refreshing) return;
   refreshing = true;
   render();
   rows = await api.refresh();
+  if (opts.pruneFixedFailed) pruneFixedFailedPaths();
   refreshing = false;
   render();
 }
@@ -104,7 +124,7 @@ function render(): void {
         void api.setShowWorktrees(show);
         render();
       },
-      onRefresh: () => void doRefresh(),
+      onRefresh: () => void doRefresh({ pruneFixedFailed: true }),
       onUpdateAll: () => void doUpdateAll(),
       onOpenSettings: () => {
         openSettingsModal();
