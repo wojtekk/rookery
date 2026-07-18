@@ -7,6 +7,7 @@ import { getGitVersion, probeRemoteUrl, runGit } from './git/probe';
 import { scanAll } from './scan';
 import { launchCommand } from './actions/launch';
 import { computeDeleteRisk } from './delete';
+import { updateAll } from './update';
 import type { AddDirectoryResult, DeleteOutcome, DeleteTarget, Row, RunActionResult } from '../shared/types';
 
 let mainWindow: BrowserWindow | null = null;
@@ -187,6 +188,7 @@ function registerIpc(): void {
     runAction(actionId, target),
   );
   ipcMain.handle('deleteRow', (_e, target: DeleteTarget) => deleteRow(target));
+  ipcMain.handle('updateAll', () => updateAll(lastSnapshot));
 }
 
 app.whenReady().then(() => {

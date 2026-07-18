@@ -33,6 +33,10 @@ const STATE_GLYPH_LABEL: Record<RowState, string> = {
   unavailable: 'unavailable',
 };
 
+// Non-colour cue for a failed "pull all" run (Principle IV: colour MUST NOT be the sole signal).
+// Distinguishes a failed-pull row from an ordinary amber out-of-sync row without relying on colour.
+const FAIL_TOOLTIP = 'pull failed — open in your merge tool';
+
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -198,16 +202,18 @@ function buildRow(
   familyPath: string | undefined,
   actions: Action[],
   handlers: RowActionHandlers,
+  failed: boolean,
 ): HTMLElement {
   const state = deriveRowState(entry);
-  const row = el('div', `row${isWorktree ? ' wt' : ''} ${STATE_ROW_CLASS[state]}`);
+  const row = el('div', `row${isWorktree ? ' wt' : ''} ${STATE_ROW_CLASS[state]}${failed ? ' fail' : ''}`);
   row.tabIndex = 0;
 
   const glyphCell = el('div', 'glyph-cell');
-  const glyph = el('span', `g ${STATE_GLYPH_CLASS[state]}`);
+  const glyph = el('span', `g ${failed ? 'g-fail' : STATE_GLYPH_CLASS[state]}`);
   glyph.setAttribute('role', 'img');
-  glyph.setAttribute('aria-label', STATE_GLYPH_LABEL[state]);
-  glyph.textContent = STATE_GLYPH_TEXT[state];
+  glyph.setAttribute('aria-label', failed ? 'pull failed' : STATE_GLYPH_LABEL[state]);
+  glyph.textContent = failed ? '⚠' : STATE_GLYPH_TEXT[state];
+  if (failed) glyph.setAttribute('data-tip', FAIL_TOOLTIP);
   glyphCell.appendChild(glyph);
   row.appendChild(glyphCell);
 
@@ -256,17 +262,22 @@ export function renderRows(
   defaultHost: string,
   actions: Action[],
   handlers: RowActionHandlers,
+  failedPaths: Set<string>,
 ): void {
   listEl.innerHTML = '';
   for (const row of rows) {
-    listEl.appendChild(buildRow(row, row.remote, defaultHost, false, undefined, actions, handlers));
+    listEl.appendChild(
+      buildRow(row, row.remote, defaultHost, false, undefined, actions, handlers, failedPaths.has(row.fullPath)),
+    );
     if (row.kind === 'repository') {
       // A worktree row inherits its primary's remote for `${2}` (worktree entries carry no remote of their own).
       // familyPath = the primary's own fullPath, needed to deregister the worktree if its directory ever goes
       // missing (005 data-model.md/research R2/R3) — populated unconditionally, not only when unavailable, to
       // avoid a stale-snapshot race if the directory vanishes between render and click.
       for (const wt of row.worktrees) {
-        listEl.appendChild(buildRow(wt, row.remote, defaultHost, true, row.fullPath, actions, handlers));
+        listEl.appendChild(
+          buildRow(wt, row.remote, defaultHost, true, row.fullPath, actions, handlers, failedPaths.has(wt.fullPath)),
+        );
       }
     }
   }

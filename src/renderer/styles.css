@@ -18,6 +18,8 @@
   --sync: #e7b23c;
   --sync-edge: rgba(231, 178, 60, 0.5);
   --dead: #5a6472;
+  --fail: #e5484d;
+  --fail-edge: rgba(229, 72, 77, 0.65);
 
   --ui: -apple-system, 'Segoe UI', system-ui, sans-serif;
   --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
@@ -332,6 +334,12 @@ body {
   color: var(--faint);
 }
 
+/* transient "pull failed" overlay (006 data-model.md) — highest edge precedence, since it reports
+   an event ("I tried to pull this and it wouldn't fast-forward"), not a derivable git state. */
+.row.fail {
+  box-shadow: inset 3px 0 0 var(--fail-edge);
+}
+
 /* status glyph — the non-color cue (shape, survives grayscale) */
 .glyph-cell {
   display: grid;
@@ -368,6 +376,11 @@ body {
   font-family: var(--mono);
   font-weight: 700;
   font-size: 14px;
+  line-height: 1;
+}
+.g-fail {
+  color: var(--fail);
+  font-size: 12px;
   line-height: 1;
 }
 
@@ -646,8 +659,9 @@ body {
   background: var(--muted);
 }
 
-/* refresh button busy state (FR-012/FR-014) */
-.ctrl.refresh.busy {
+/* refresh / pull-all button busy state (FR-012/FR-014, FR-009) */
+.ctrl.refresh.busy,
+.ctrl.pull-all.busy {
   cursor: default;
   opacity: 0.7;
 }
@@ -969,7 +983,8 @@ body {
       transform: none;
     }
   }
-  .ctrl.refresh.busy .spin-icon {
+  .ctrl.refresh.busy .spin-icon,
+  .ctrl.pull-all.busy .spin-icon {
     display: inline-block;
     animation: spin 0.8s linear infinite;
   }

@@ -16,12 +16,21 @@ export interface RawIdentity {
   topLevel: string;
 }
 
-export function runGit(args: string[], cwd: string): Promise<string> {
+export function runGit(
+  args: string[],
+  cwd: string,
+  opts?: { timeoutMs?: number; env?: NodeJS.ProcessEnv },
+): Promise<string> {
   return new Promise((resolve, reject) => {
-    execFile('git', args, { cwd, timeout: SPAWN_TIMEOUT_MS, killSignal: 'SIGKILL' }, (err, stdout) => {
-      if (err) reject(err);
-      else resolve(stdout);
-    });
+    execFile(
+      'git',
+      args,
+      { cwd, timeout: opts?.timeoutMs ?? SPAWN_TIMEOUT_MS, killSignal: 'SIGKILL', env: opts?.env ?? process.env },
+      (err, stdout) => {
+        if (err) reject(err);
+        else resolve(stdout);
+      },
+    );
   });
 }
 

@@ -21,6 +21,7 @@ const api: RepoDashboardApi = {
   runAction: (actionId: string, target: { path: string; remoteUrl: string | null }) =>
     ipcRenderer.invoke('runAction', actionId, target),
   deleteRow: (target: DeleteTarget) => ipcRenderer.invoke('deleteRow', target),
+  updateAll: () => ipcRenderer.invoke('updateAll'),
 };
 
 contextBridge.exposeInMainWorld('repoDashboard', api);

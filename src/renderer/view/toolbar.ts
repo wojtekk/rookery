@@ -3,11 +3,13 @@
 export interface ToolbarState {
   showWorktrees: boolean;
   refreshing: boolean;
+  updating: boolean;
 }
 
 export interface ToolbarHandlers {
   onToggleWorktrees: (show: boolean) => void;
   onRefresh: () => void;
+  onUpdateAll: () => void;
   onOpenSettings: () => void;
 }
 
@@ -48,6 +50,19 @@ export function renderToolbar(container: HTMLElement, state: ToolbarState, handl
   refreshBtn.appendChild(document.createTextNode(' Refresh'));
   if (!state.refreshing) wireActivate(refreshBtn, handlers.onRefresh);
   container.appendChild(refreshBtn);
+
+  const updateBtn = document.createElement('div');
+  updateBtn.className = `ctrl pull-all${state.updating ? ' busy' : ''}`;
+  updateBtn.tabIndex = 0;
+  updateBtn.setAttribute('role', 'button');
+  updateBtn.setAttribute('aria-busy', String(state.updating));
+  const updateSpin = document.createElement('span');
+  updateSpin.className = 'spin-icon';
+  updateSpin.textContent = '⇅';
+  updateBtn.appendChild(updateSpin);
+  updateBtn.appendChild(document.createTextNode(' Pull all'));
+  if (!state.updating) wireActivate(updateBtn, handlers.onUpdateAll);
+  container.appendChild(updateBtn);
 
   const settingsBtn = document.createElement('div');
   settingsBtn.className = 'ctrl';

@@ -84,6 +84,15 @@ export interface DeleteTarget {
 
 export type DeleteOutcome = { outcome: 'deleted' } | { outcome: 'cancelled' } | { outcome: 'failed'; reason: string };
 
+// Per-working-tree result of a "pull all" run (006 data-model.md). `path` is the tilde-shortened
+// `fullPath` (matches Row.fullPath) so the renderer can key its failed-path overlay directly on it.
+export type UpdateResult = 'updated' | 'already-current' | 'skipped' | 'failed';
+
+export interface RepoUpdateOutcome {
+  path: string;
+  result: UpdateResult;
+}
+
 // The typed surface exposed via contextBridge as `window.repoDashboard`. See contracts/ipc-api.md.
 export interface RepoDashboardApi {
   listRepositories(): Promise<Row[]>;
@@ -101,4 +110,5 @@ export interface RepoDashboardApi {
   setActions(actions: Action[]): Promise<void>;
   runAction(actionId: string, target: { path: string; remoteUrl: string | null }): Promise<RunActionResult>;
   deleteRow(target: DeleteTarget): Promise<DeleteOutcome>;
+  updateAll(): Promise<RepoUpdateOutcome[]>;
 }

@@ -1,6 +1,6 @@
 // Bootstrap: calls IPC, holds view state (sort, state filter, worktree toggle), re-renders on change.
 
-import type { Row, Settings, RepoDashboardApi } from '../shared/types';
+import type { Row, Settings, RepoDashboardApi, UpdateResult } from '../shared/types';
 import { sortRows } from './view/sort.js';
 import { filterRows, type StateFilter } from './view/filter.js';
 import { renderRows, updateSortIndicator, wireSortHeaders } from './view/table.js';
@@ -61,6 +61,8 @@ function showNotice(message: string): void {
 }
 let stateFilter: StateFilter = 'all';
 let refreshing = false;
+let updating = false; // re-entry guard + toolbar spinner for "Pull all" (FR-009)
+let failedPaths = new Set<string>(); // paths with result 'failed' from the last "Pull all" run (FR-014)
 let loadState: LoadState = 'loading';
 let loaderShownAt: number | null = null;
 
@@ -73,10 +75,29 @@ async function doRefresh(): Promise<void> {
   render();
 }
 
+async function doUpdateAll(): Promise<void> {
+  if (updating) return;
+  updating = true;
+  failedPaths = new Set();
+  render();
+
+  const outcomes = await api.updateAll();
+  failedPaths = new Set(outcomes.filter((o) => o.result === 'failed').map((o) => o.path));
+
+  const counts: Record<UpdateResult, number> = { updated: 0, 'already-current': 0, skipped: 0, failed: 0 };
+  for (const o of outcomes) counts[o.result]++;
+  showNotice(
+    `Updated ${counts.updated} · ${counts['already-current']} already current · ${counts.skipped} skipped · ${counts.failed} failed`,
+  );
+
+  updating = false;
+  await doRefresh();
+}
+
 function render(): void {
   renderToolbar(
     els.toolbar,
-    { showWorktrees: settings.showWorktrees, refreshing },
+    { showWorktrees: settings.showWorktrees, refreshing, updating },
     {
       onToggleWorktrees: (show) => {
         settings.showWorktrees = show;
@@ -84,6 +105,7 @@ function render(): void {
         render();
       },
       onRefresh: () => void doRefresh(),
+      onUpdateAll: () => void doUpdateAll(),
       onOpenSettings: () => {
         openSettingsModal();
         render();
@@ -91,10 +113,15 @@ function render(): void {
     },
   );
 
-  renderSummary({ title: els.fleetTitle, filters: els.filters, sumbar: els.sumbar }, rows, stateFilter, (filter) => {
-    stateFilter = filter;
-    render();
-  });
+  renderSummary(
+    { title: els.fleetTitle, filters: els.filters, sumbar: els.sumbar },
+    rows,
+    stateFilter,
+    (filter) => {
+      stateFilter = filter;
+      render();
+    },
+  );
 
   updateSortIndicator(els.thead, settings.sortDimension, settings.sortDirection);
 
@@ -112,7 +139,7 @@ function render(): void {
     onDelete: (target) => {
       void api.deleteRow(target).then(() => doRefresh());
     },
-  });
+  }, failedPaths);
 
   const hasDirectories = settings.observedDirectories.length > 0;
   const screen = decideStartupScreen(loadState, hasDirectories);
