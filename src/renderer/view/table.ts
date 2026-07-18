@@ -10,7 +10,7 @@ import type { SortDimension, SortDirection } from './sort.js';
 /** Row-level launch target the renderer forwards to `runAction` (path is the tilde form; main expands it). */
 export interface RowActionHandlers {
   onRun: (actionId: string, target: { path: string; remoteUrl: string | null }) => void;
-  onDelete: (target: { path: string; isWorktree: boolean }) => void;
+  onDelete: (target: { path: string; isWorktree: boolean; familyPath?: string }) => void;
 }
 
 const STATE_ROW_CLASS: Record<RowState, string> = {
@@ -175,13 +175,18 @@ function buildMenuCell(
 
 // Always-visible delete icon (004 FR-001) — its own fixed cell, separate from the
 // user-configurable .menu, so it renders on every row regardless of actions.length.
-function buildDeleteCell(entry: WorkingTreeEntry, isWorktree: boolean, handlers: RowActionHandlers): HTMLElement {
+function buildDeleteCell(
+  entry: WorkingTreeEntry,
+  isWorktree: boolean,
+  familyPath: string | undefined,
+  handlers: RowActionHandlers,
+): HTMLElement {
   const btn = el('button', 'row-delete-ico');
   btn.type = 'button';
   btn.textContent = '×';
   btn.setAttribute('aria-label', 'Delete');
   btn.setAttribute('data-tip', 'Delete');
-  btn.addEventListener('click', () => handlers.onDelete({ path: entry.fullPath, isWorktree }));
+  btn.addEventListener('click', () => handlers.onDelete({ path: entry.fullPath, isWorktree, familyPath }));
   return btn;
 }
 
@@ -190,6 +195,7 @@ function buildRow(
   remote: Remote,
   defaultHost: string,
   isWorktree: boolean,
+  familyPath: string | undefined,
   actions: Action[],
   handlers: RowActionHandlers,
 ): HTMLElement {
@@ -237,7 +243,7 @@ function buildRow(
   appendText(row, 'num changed', entry.availability === 'ok' ? relativeTime(entry.lastChange) : '—');
 
   row.appendChild(buildMenuCell(entry, remote, actions, handlers));
-  row.appendChild(buildDeleteCell(entry, isWorktree, handlers));
+  row.appendChild(buildDeleteCell(entry, isWorktree, familyPath, handlers));
 
   return row;
 }
@@ -251,10 +257,15 @@ export function renderRows(
 ): void {
   listEl.innerHTML = '';
   for (const row of rows) {
-    listEl.appendChild(buildRow(row, row.remote, defaultHost, false, actions, handlers));
+    listEl.appendChild(buildRow(row, row.remote, defaultHost, false, undefined, actions, handlers));
     if (row.kind === 'repository') {
       // A worktree row inherits its primary's remote for `${2}` (worktree entries carry no remote of their own).
-      for (const wt of row.worktrees) listEl.appendChild(buildRow(wt, row.remote, defaultHost, true, actions, handlers));
+      // familyPath = the primary's own fullPath, needed to deregister the worktree if its directory ever goes
+      // missing (005 data-model.md/research R2/R3) — populated unconditionally, not only when unavailable, to
+      // avoid a stale-snapshot race if the directory vanishes between render and click.
+      for (const wt of row.worktrees) {
+        listEl.appendChild(buildRow(wt, row.remote, defaultHost, true, row.fullPath, actions, handlers));
+      }
     }
   }
 }

@@ -73,10 +73,13 @@ export type GitStatus =
 export type AddDirectoryResult = { ok: true } | { ok: false; reason: string };
 
 // What the renderer sends to identify exactly which row to delete (004 data-model.md).
-// `isWorktree` alone selects the removal path — no "primary path" needed (research R2).
+// `familyPath` is the worktree's family/primary repository — only known (and only needed) when
+// the target's own directory is missing, since `-C <path>` can't anchor on a path that's gone
+// (005 data-model.md/research R2/R3). `undefined` for non-worktree targets and orphan worktrees.
 export interface DeleteTarget {
   path: string;
   isWorktree: boolean;
+  familyPath?: string;
 }
 
 export type DeleteOutcome = { outcome: 'deleted' } | { outcome: 'cancelled' } | { outcome: 'failed'; reason: string };
