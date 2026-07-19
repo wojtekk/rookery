@@ -1,5 +1,8 @@
 .playwright-mcp/
 tooltip-check.png
-node_modules/
+node_modules
 dist/
 out/
+CLAUDE.local.md
+.claude/settings.local.json
+.vscode/
