@@ -195,6 +195,11 @@ body {
   border-color: var(--line-2);
   background: var(--surface);
 }
+/* blocked while a long operation runs (FR-015) — native :disabled already suppresses :hover and
+   click/keyboard activation, so only the cursor needs an explicit rule; no colour change. */
+.filter:disabled {
+  cursor: not-allowed;
+}
 .swatch {
   display: inline-block;
   width: 8px;
@@ -274,6 +279,15 @@ body {
   gap: 5px;
   align-items: center;
 }
+/* sort is blocked while a long operation runs — dims like the table rows (FR-014), unlike the
+   cursor-only controls, since it sits directly above the rows it labels */
+.thead.busy {
+  opacity: 0.18;
+  transition: opacity 0.15s ease;
+}
+.thead.busy .sortable {
+  cursor: not-allowed;
+}
 .thead .sortable.active {
   color: var(--fg);
 }
@@ -291,13 +305,27 @@ body {
   display: inline-block;
 }
 
+.table-wrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0; /* let this be the one scrolling region within the fixed-height column */
+}
+
 .list {
   border: 1px solid var(--line);
   border-radius: 14px;
   overflow-y: auto;
   background: var(--surface);
   flex: 1;
-  min-height: 0; /* let this be the one scrolling region within the fixed-height column */
+  min-height: 0;
+  transition: opacity 0.15s ease;
+}
+
+/* long operation running — rows stay clickable, this is a visual cue only (FR-004) */
+.list.busy {
+  opacity: 0.18;
 }
 
 .row {
@@ -341,6 +369,48 @@ body {
    an event ("I tried to pull this and it wouldn't fast-forward"), not a derivable git state. */
 .row.fail {
   box-shadow: inset 3px 0 0 var(--fail-edge);
+}
+
+/* initial-load skeleton row: mocked placeholders, no real data yet (Feature 009) */
+.row.skeleton {
+  cursor: default;
+}
+.row.skeleton:hover {
+  background: none;
+}
+.skel-clock {
+  color: var(--faint);
+  font-size: 12px;
+  line-height: 1;
+}
+.skel-box {
+  height: 10px;
+  border-radius: 4px;
+  background: var(--line-2);
+}
+.skel-slug,
+.skel-track {
+  height: 8px;
+  margin-top: 6px;
+  background: var(--line);
+}
+.skel-name {
+  width: 62%;
+}
+.skel-slug {
+  width: 38%;
+}
+.skel-branch {
+  width: 68%;
+}
+.skel-track {
+  width: 42%;
+}
+.skel-num {
+  width: 34px;
+}
+.skel-changed {
+  width: 54px;
 }
 
 /* status glyph — the non-color cue (shape, survives grayscale) */
@@ -522,6 +592,11 @@ body {
   opacity: 0.35;
   cursor: not-allowed;
 }
+/* blocked while a long operation runs (FR-016) — kept separate from .disabled above (permanent,
+   "no remote configured", dimmed): this is temporary and MUST NOT change colour. */
+.row-action-ico:disabled {
+  cursor: not-allowed;
+}
 
 /* always-visible per-row delete icon (004 FR-001) — its own fixed rightmost column, distinct
    from the user-configurable .menu, so it never disappears when actions.length === 0 */
@@ -542,6 +617,10 @@ body {
   border-color: #e5484d;
   color: #e5484d;
   background: var(--surface);
+}
+/* blocked while a long operation runs (FR-016) — MUST NOT change colour. */
+.row-delete-ico:disabled {
+  cursor: not-allowed;
 }
 
 /* transient launch-failure notices (FR-007, SC-004) */
@@ -612,6 +691,11 @@ body {
   left: auto;
   right: 0;
 }
+/* directory-path tooltip only (FR-017) — suppressed while a long operation runs; every other
+   row tooltip (action name, delete, failed-pull glyph) is unaffected. */
+.list.busy .name[data-tip]:hover::after {
+  display: none;
+}
 
 .foot {
   margin-top: 14px;
@@ -643,23 +727,27 @@ body {
   margin-bottom: 16px;
 }
 
-/* startup/refresh loading indicator: flat, indeterminate, centered (FR-002) */
-.loader {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 16px;
-}
-.loader[hidden] {
-  display: none;
-}
+/* flat, indeterminate loader dots — used inside .table-loader (FR-005) */
 .loader-dot {
   width: 16px;
   height: 16px;
   border-radius: 50%;
   background: var(--muted);
+}
+
+/* table loader: transparent, centred over the table region only — no whole-UI dim (FR-005) */
+.table-loader {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  pointer-events: none;
+}
+.table-loader[hidden] {
+  display: none;
 }
 
 /* refresh / pull-all / cleanup button busy state (FR-012/FR-014, FR-009, FR-011) */
@@ -670,11 +758,16 @@ body {
   opacity: 0.7;
 }
 
-/* the OTHER bulk operation is running — dimmed, non-interactive, but not itself animating (FR-012) */
+/* blocked by a running long operation or by having nothing to act on — non-interactive, but MUST
+   NOT change colour (FR-003/FR-011/FR-012/FR-015/FR-016): cursor is the only cue. pointer-events
+   stays auto (not none) so the cursor actually renders — pointer-events:none would make the
+   browser skip hit-testing this element and show whatever cursor is beneath it instead. */
 .ctrl.disabled {
-  cursor: default;
-  opacity: 0.45;
-  pointer-events: none;
+  cursor: not-allowed;
+}
+.ctrl.disabled:hover {
+  border-color: var(--line);
+  color: var(--muted);
 }
 
 /* settings modal — observed directories (FR-002/FR-015/FR-016) */
@@ -792,6 +885,10 @@ body {
 }
 .btn:hover {
   filter: brightness(1.08);
+}
+/* blocked while a long operation runs (FR-011, empty-state "+ Add directory…") — no colour change. */
+.btn:disabled {
+  cursor: not-allowed;
 }
 .btn.ghost {
   background: transparent;
@@ -1087,17 +1184,6 @@ body {
     to {
       opacity: 1;
       transform: none;
-    }
-  }
-  .ctrl.refresh.busy .spin-icon,
-  .ctrl.pull-all.busy .spin-icon,
-  .ctrl.cleanup.busy .spin-icon {
-    display: inline-block;
-    animation: spin 0.8s linear infinite;
-  }
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
     }
   }
   .loader-dot {

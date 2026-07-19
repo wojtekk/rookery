@@ -1,29 +1,48 @@
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-`specs/008-branch-cleanup/plan.md`
+`specs/009-block-ui-during-operations/plan.md`
 
-Active feature: **Cleanup Gone Branches and Worktrees**
-(`specs/008-branch-cleanup/`) — a header **"Cleanup"** button (sibling of
-"Pull all") that, per repository (not per worktree), removes `[gone]`
-branches and stale worktrees after a **review overlay** where the user
-unselects anything to keep. Two-phase, because the scan snapshot lacks
-gone/worktree data: a new read-only scan (`git fetch -p` + `for-each-ref` +
-`worktree list --porcelain`) in a new `src/main/cleanup.ts` builds a removal
-plan; a second call removes only the selected items. Reuses `update.ts`'s
-families/`runPool`/`NON_INTERACTIVE_ENV`/deadline pattern and the settings
-modal's `.scrim`/`.modal` CSS; reuses `showNotice` for the counts summary.
-Removal command matrix: `git branch -D` for `[gone]` branches (force-delete,
-consented via the overlay); `git worktree remove` **without** `--force` for
-present worktrees (fails safely on uncommitted work — Principle III),
-**with** `--force` only for missing-directory worktrees. Extends the engine
-script beyond `[gone]`-branch worktrees to also prune missing-directory and
-merged-branch worktrees. Two new IPC methods (`scanCleanup`,
-`executeCleanup`), one new overlay module (`src/renderer/view/cleanup.ts`),
-new checkbox CSS. No new dependency, no new persisted setting. See
-`research.md`, `data-model.md`, `contracts/ipc-cleanup.md`, `quickstart.md`.
+Active feature: **Block UI During Long Operations**
+(`specs/009-block-ui-during-operations/plan.md`, Spec = **Revision
+2026-07-19e**) — while one of Refresh, Pull all, or Cleanup runs, the system
+blocks essentially every control that operates on repositories or
+reconfigures the view: the other two of the three buttons, **Settings, the
+Worktrees toggle, every filter chip, the sort-header row, and every row-level
+action (delete, custom launch)**. Only the table rows and the sort-header row
+visually dim to barely-visible (repository **and** nested worktree rows, plus
+the header); every other blocked control (Settings, toggle, filter chips, row
+actions, the two non-running buttons) **MUST NOT change colour/opacity** —
+only the mouse cursor becomes `not-allowed`. A repository row's
+directory-path tooltip is suppressed for the duration. Table rows are also
+removed from the tab order (`tabIndex=-1`) on top of the dim. The loader still
+shows over the table (150 ms show-delay / 400 ms min-visible, reused
+unchanged). Pull all/Cleanup stay disabled when no repositories are discovered
+(Refresh stays available), independent of the long-op lock. **Renderer-only**:
+no new IPC, no main-process change, no dependency, no persisted setting. Lock
+release lives in the existing `finally` blocks in `doRefresh`/`doUpdateAll`/
+`doCleanup` so any settlement — success, failure result, or rejection —
+clears every lock/dim (FR-013). Still **no whole-viewport dim and no native
+`inert`** — every control is blocked individually by its own render logic
+(native `<button disabled>` for filter chips/row actions; conditional
+`wireActivate` + CSS override for the toolbar's `<div role="button">`
+controls; a guarded callback for the sort header). The **constitution was
+amended a second time, to v3.0.0** (Principle IV re-expanded after v2.0.0's
+narrowing proved too narrow); `plan.md`, `research.md`, `data-model.md`,
+`contracts/ui-lockout.md`, `quickstart.md`, and `tasks.md` are regenerated to
+match. **Implementation is complete through T015** (T001–T009 = the
+2.0.0-scoped per-row/per-button foundation; T010–T015 = the 3.0.0-scoped
+extension) — build and all 102 tests pass. **T009 and T016 (manual
+`quickstart.md` click-throughs) are still owed** before merge — an agent
+cannot drive real mouse/keyboard/hover interaction against the Electron
+window from this environment.
 
-Prior features: **Filter Repositories Needing Attention**
+Prior features: **Cleanup Gone Branches and Worktrees**
+(`specs/008-branch-cleanup/plan.md`) — a header "Cleanup" button that removes
+`[gone]` branches and stale worktrees per repository after a review overlay,
+via two IPC methods (`scanCleanup`, `executeCleanup`); `git worktree remove`
+without `--force` (with `--force` only for missing-directory worktrees).
+**Filter Repositories Needing Attention**
 (`specs/007-failed-repos-filter/plan.md`) — a "Failed" state-filter chip
 narrowing the list to working trees whose most recent "Pull all" failed.
 **Update All Repositories**
