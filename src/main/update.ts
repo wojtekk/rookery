@@ -16,7 +16,7 @@ const UPDATE_POOL_SIZE = 6;
 // Turns a credential prompt into an immediate error (Principle I: never prompt) for both HTTPS
 // and SSH remotes; scan.ts's tildeShorten is duplicated per-module rather than shared, so this
 // mirrors that existing convention instead of reaching across to main.ts (which pulls in electron).
-const NON_INTERACTIVE_ENV: NodeJS.ProcessEnv = {
+export const NON_INTERACTIVE_ENV: NodeJS.ProcessEnv = {
   ...process.env,
   GIT_TERMINAL_PROMPT: '0',
   GIT_SSH_COMMAND: 'ssh -oBatchMode=yes -oStrictHostKeyChecking=accept-new',
@@ -155,7 +155,7 @@ export async function updateRepo(absPath: string): Promise<UpdateResult> {
  * R4), so — conservatively, since it's cheap — every orphan worktree is serialized into one shared
  * family too, in case any of them turn out to share a primary excluded from the observed dirs.
  */
-function groupIntoFamilies(rows: Row[]): FlatEntry[][] {
+export function groupIntoFamilies(rows: Row[]): FlatEntry[][] {
   const families: FlatEntry[][] = [];
   const orphans: FlatEntry[] = [];
   for (const row of rows) {

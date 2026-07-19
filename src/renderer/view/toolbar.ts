@@ -4,12 +4,14 @@ export interface ToolbarState {
   showWorktrees: boolean;
   refreshing: boolean;
   updating: boolean;
+  cleaning: boolean;
 }
 
 export interface ToolbarHandlers {
   onToggleWorktrees: (show: boolean) => void;
   onRefresh: () => void;
   onUpdateAll: () => void;
+  onCleanup: () => void;
   onOpenSettings: () => void;
 }
 
@@ -52,17 +54,34 @@ export function renderToolbar(container: HTMLElement, state: ToolbarState, handl
   container.appendChild(refreshBtn);
 
   const updateBtn = document.createElement('div');
-  updateBtn.className = `ctrl pull-all${state.updating ? ' busy' : ''}`;
+  const updateLocked = !state.updating && state.cleaning; // FR-012: mutually exclusive with Cleanup
+  updateBtn.className = `ctrl pull-all${state.updating ? ' busy' : ''}${updateLocked ? ' disabled' : ''}`;
   updateBtn.tabIndex = 0;
   updateBtn.setAttribute('role', 'button');
   updateBtn.setAttribute('aria-busy', String(state.updating));
+  updateBtn.setAttribute('aria-disabled', String(updateLocked));
   const updateSpin = document.createElement('span');
   updateSpin.className = 'spin-icon';
   updateSpin.textContent = '⇅';
   updateBtn.appendChild(updateSpin);
   updateBtn.appendChild(document.createTextNode(' Pull all'));
-  if (!state.updating) wireActivate(updateBtn, handlers.onUpdateAll);
+  if (!state.updating && !state.cleaning) wireActivate(updateBtn, handlers.onUpdateAll);
   container.appendChild(updateBtn);
+
+  const cleanupBtn = document.createElement('div');
+  const cleanupLocked = !state.cleaning && state.updating; // FR-012: mutually exclusive with Pull all
+  cleanupBtn.className = `ctrl cleanup${state.cleaning ? ' busy' : ''}${cleanupLocked ? ' disabled' : ''}`;
+  cleanupBtn.tabIndex = 0;
+  cleanupBtn.setAttribute('role', 'button');
+  cleanupBtn.setAttribute('aria-busy', String(state.cleaning));
+  cleanupBtn.setAttribute('aria-disabled', String(cleanupLocked));
+  const cleanupSpin = document.createElement('span');
+  cleanupSpin.className = 'spin-icon';
+  cleanupSpin.textContent = '⌫';
+  cleanupBtn.appendChild(cleanupSpin);
+  cleanupBtn.appendChild(document.createTextNode(' Cleanup'));
+  if (!state.cleaning && !state.updating) wireActivate(cleanupBtn, handlers.onCleanup);
+  container.appendChild(cleanupBtn);
 
   const settingsBtn = document.createElement('div');
   settingsBtn.className = 'ctrl';
