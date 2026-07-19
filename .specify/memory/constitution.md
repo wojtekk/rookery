@@ -1,15 +1,51 @@
 <!--
 Sync Impact Report
 ==================
-Version change: 1.4.0 → 1.5.0
-Rationale: Extend Principle II beyond git-ref mutations (pull, branch deletion,
-worktree removal) to name push, branch cleanup, and filesystem-level repository
-deletion explicitly, ahead of a planned destructive-actions feature. Repository
-deletion is codified as a distinct, higher-severity mutation tier (named
-confirmation + an uncommitted/unpushed-work warning) because it destroys the
-directory itself, not just a git ref, and has no git-native recovery path.
-Principle III is extended so a rejected push is treated the same as a failed
-pull: stop and surface, never force or auto-resolve.
+Version change: 2.0.0 → 3.0.0
+Rationale: Re-expand Principle IV's UI-lockout mandate to reconcile with Feature
+009's further-revised design (specs/009-block-ui-during-operations/spec.md,
+Revision 2026-07-19e). Live feedback after implementing the 2.0.0-narrowed design
+made the actual intent explicit: while a long operation (Refresh, Pull all,
+Cleanup) runs, the application MUST block essentially every control that operates
+on repositories — not just the other two long-operation triggers. This reinstates,
+in substance, most of what 2.0.0 had just relaxed (Settings, the Worktrees toggle,
+filter chips, sort, and row-level actions are blocked again), while keeping 2.0.0's
+two genuine improvements: no whole-viewport dim overlay, and no native `inert`
+blanket lockout. Instead: the repository table rows AND the sort-header row dim to
+barely-visible (the only two things that visually dim); every other blocked
+control (Settings, Worktrees toggle, filter chips, row-level actions) MUST NOT
+change colour/opacity at all — blocked feedback for them is limited to becoming
+non-interactive with an inactive ("not-allowed") mouse cursor. Because this removes
+2.0.0's previously-required MUSTs that those controls "stay interactive," it is a
+backward-incompatible redefinition — MAJOR. See
+specs/009-block-ui-during-operations/spec.md (Revision 2026-07-19e).
+
+Prior change (1.6.0 → 2.0.0): Narrow Principle IV's UI-lockout mandate to reconcile
+with Feature 009's revised design (Revision 2026-07-19b). The v1.6.0 mandate to
+"block every control that could start another operation or mutate the
+observed-directory set" and to dim "the underlying content" was relaxed: while a
+long operation ran, only the OTHER long-operation triggers were blocked, only the
+repository table rows dimmed, and Settings, the Worktrees toggle, filter chips,
+sort, and row-level actions stayed interactive. (Superseded by 3.0.0, which
+reinstates most of what this relaxed.)
+
+Prior change (1.5.0 → 1.6.0): Codify UI-blocking behavior for long/blocking
+operations under Principle IV. Long operations (refresh, pull-all, branch cleanup)
+MUST block the controls that could start a conflicting operation or mutate the
+observed-directory set, MUST show the loader/progress indicator while visibly dimming
+the underlying content, and MUST run one-at-a-time (no concurrent long operations).
+This tightened the pre-existing "MUST NOT freeze the UI" mandate from merely "stay
+responsive" to "actively lock out conflicting input and show progress." (Superseded
+in part by 2.0.0, which narrows what is blocked and what is dimmed.)
+
+Prior change (1.4.0 → 1.5.0): Extend Principle II beyond git-ref mutations (pull,
+branch deletion, worktree removal) to name push, branch cleanup, and
+filesystem-level repository deletion explicitly, ahead of a planned
+destructive-actions feature. Repository deletion is codified as a distinct,
+higher-severity mutation tier (named confirmation + an uncommitted/unpushed-work
+warning) because it destroys the directory itself, not just a git ref, and has no
+git-native recovery path. Principle III is extended so a rejected push is treated
+the same as a failed pull: stop and surface, never force or auto-resolve.
 
 Prior change (1.3.0 → 1.4.0): Reconcile Principle V + Technical Constraints with the custom
 per-repository action launchers feature (MINOR: the local-only, no-telemetry, and
@@ -54,6 +90,51 @@ Added sections:
   - Governance
 
 Removed sections: none (template placeholders replaced).
+
+Amendments (3.0.0):
+  - Principle IV: the 2.0.0 narrowing is substantially reversed. While a long
+    operation (Refresh, Pull all, Cleanup) runs, the app MUST block every control
+    that operates on repositories: the OTHER long-operation triggers, Settings, the
+    Worktrees toggle, filter chips, the sort-header row, and row-level actions
+    (delete, custom launches) — nothing besides the loader and the running
+    trigger's own busy indicator stays active. Visual treatment is split
+    deliberately: the repository table rows AND the sort-header row dim to
+    barely-visible (the only two things that dim); every other blocked control
+    (Settings, Worktrees toggle, filter chips, row-level actions) MUST NOT change
+    colour or opacity — blocked feedback for them is limited to becoming
+    non-interactive with an inactive ("not-allowed") mouse cursor. A repository
+    row's directory-path tooltip MUST NOT appear while a long operation runs. The
+    2.0.0 improvements are retained: still no whole-viewport dim overlay and no
+    native `inert` blanket lockout — each control is blocked individually by its
+    own render logic, preserving per-control settlement-based release (FR-013).
+    The empty-list rule is unchanged: bulk actions with nothing to act on stay
+    blocked; Refresh stays available.
+
+Amendments (2.0.0):
+  - Principle IV: the UI-lockout scope introduced in 1.6.0 is narrowed. While a long
+    operation (Refresh, Pull all, Cleanup) runs, the app MUST (a) prevent only the
+    OTHER long-operation triggers from starting a second operation (still at most one
+    at a time), each showing its own busy/non-interactive state; (b) show the loader
+    over the repository table and dim only the table's rows (repository and, when
+    shown, nested worktree rows) to barely-visible as a visual cue — NOT the whole
+    interface; and (c) keep every other control interactive (Settings, the Worktrees
+    toggle, filter chips, sort, row-level delete/launch actions), with the row dim
+    being a visual cue only, never an input barrier. The empty-list rule is retained:
+    bulk actions with nothing to act on stay blocked; Refresh stays available. This
+    removes the 1.6.0 requirements to block observed-directory-set-mutating controls
+    (e.g., Settings) and to dim the whole content, so it is a MAJOR
+    (backward-incompatible) redefinition.
+
+Amendments (1.6.0):
+  - Principle IV: the "MUST NOT freeze the UI" mandate is expanded into an active
+    UI-lockout requirement for long/blocking operations. While such an operation
+    runs, the app MUST (a) block every control that could start a conflicting
+    operation or mutate the observed-directory set, (b) show the loader/progress
+    indicator while visibly dimming the underlying content so it is barely visible,
+    and (c) permit at most one long operation at a time (no concurrency). Controls
+    that are inapplicable because there is nothing to act on (e.g., bulk actions
+    when no repositories are listed) MUST also be blocked, while controls that can
+    still make progress (e.g., refresh on an empty list) MUST stay available.
 
 Amendments (1.5.0):
   - Principle II: the mutating-operation list now names push, branch cleanup, and
@@ -103,14 +184,19 @@ Amendments (1.1.0):
   - Technical Constraints: refresh is on explicit demand; "refresh interval" setting
     replaced with "sort order" as the persisted example.
 
-Templates reviewed:
+Templates reviewed (re-verified for 3.0.0):
   ✅ .specify/templates/plan-template.md — "Constitution Check" gate is generic
      (reads from this file); no hardcoded principle names to update.
   ✅ .specify/templates/spec-template.md — no constitution-specific references.
   ✅ .specify/templates/tasks-template.md — no constitution-specific references.
   ✅ .specify/templates/checklist-template.md — no constitution-specific references.
 
-Follow-up TODOs: none.
+Follow-up TODOs:
+  ⚠ specs/009-block-ui-during-operations/{plan.md,research.md,data-model.md,
+    contracts/ui-lockout.md,quickstart.md,tasks.md} MUST be regenerated against the
+    revised spec (Revision 2026-07-19e) to reflect the re-expanded lockout scope,
+    and the already-implemented code (T001–T008, per the 2.0.0-scoped design) MUST
+    be extended to match before this feature is considered done.
 -->
 
 # Git Manager Constitution
@@ -177,9 +263,27 @@ dirty (blue) indicator takes precedence. The indicator MUST NOT be a full-row
 background fill, and colour MUST NOT be the sole signal of state. Each repo row MUST
 surface at minimum its remote slug (its primary identifier), directory name, current
 branch with tracking status (remote-tracked or local-only), and its local/ahead/behind
-change counts; the full path MUST be available on demand (e.g., tooltip). Long or
-blocking operations MUST NOT freeze the UI. State MUST be refreshed at startup and be
-re-derivable on explicit user demand; the application MUST NOT rely on automatic or
+change counts; the full path MUST be available on demand (e.g., tooltip), except while a
+long operation is running (below). Long or blocking operations MUST NOT freeze the UI.
+While a long operation (Refresh, Pull all, Cleanup) runs, the application MUST: (a)
+prevent the *other* long-operation triggers from starting a second operation — at most
+one long operation runs at a time — with each of those triggers showing its own busy or
+non-interactive state; (b) block every other control that operates on repositories or
+reconfigures what is shown — Settings, the Worktrees toggle, filter chips, the sort-header
+row, and row-level actions (delete, custom launches) — so that nothing besides the loader
+and the running trigger's own busy indicator remains active; (c) show the loader/progress
+indicator over the repository table and dim the table's rows (repository rows and, when
+shown, nested worktree rows) AND the sort-header row to barely-visible — these are the
+only two things that visually dim; every other control blocked by (b) MUST NOT change
+colour or opacity, showing only an inactive ("not-allowed") mouse cursor as feedback; and
+(d) suppress a repository row's directory-path tooltip for the duration. This scope is
+deliberate: the app still does NOT apply a whole-viewport dim and does NOT use a native
+`inert` blanket lockout — each blocked control is blocked individually by its own render
+logic, which is what keeps release settlement-based and per-control (Development
+Workflow). Controls that have nothing to act on (e.g., bulk actions when no repositories
+are discovered) MUST be blocked, while controls that can still make progress (e.g.,
+Refresh on an empty list) MUST remain available. State MUST be refreshed at startup and
+be re-derivable on explicit user demand; the application MUST NOT rely on automatic or
 timed refresh to stay honest.
 
 Rationale: The tool's entire value is at-a-glance truth about many repos. State that
@@ -250,4 +354,4 @@ credential handling, or network activity MUST be reviewed against Principles I�
 before merge. Deviations MUST be justified in the plan's Complexity Tracking or
 rejected.
 
-**Version**: 1.5.0 | **Ratified**: 2026-07-16 | **Last Amended**: 2026-07-17
+**Version**: 3.0.0 | **Ratified**: 2026-07-16 | **Last Amended**: 2026-07-19

@@ -152,6 +152,7 @@ function buildMenuCell(
   remote: Remote,
   actions: Action[],
   handlers: RowActionHandlers,
+  locked: boolean,
 ): HTMLElement {
   const cell = el('div', 'menu');
   for (const action of actions) {
@@ -172,6 +173,9 @@ function buildMenuCell(
         handlers.onRun(action.id, { path: entry.fullPath, remoteUrl: remote?.rawUrl ?? null }),
       );
     }
+    // FR-016: blocked while a long operation runs — on top of, not instead of, the "no remote" case
+    // above; native disabled with no `.disabled` class added, so it stays visually unchanged.
+    if (locked) btn.disabled = true;
     cell.appendChild(btn);
   }
   return cell;
@@ -184,12 +188,14 @@ function buildDeleteCell(
   isWorktree: boolean,
   familyPath: string | undefined,
   handlers: RowActionHandlers,
+  locked: boolean,
 ): HTMLElement {
   const btn = el('button', 'row-delete-ico');
   btn.type = 'button';
   btn.textContent = '×';
   btn.setAttribute('aria-label', 'Delete');
   btn.setAttribute('data-tip', 'Delete');
+  btn.disabled = locked; // FR-016: blocked while a long operation runs — no colour change
   btn.addEventListener('click', () => handlers.onDelete({ path: entry.fullPath, isWorktree, familyPath }));
   return btn;
 }
@@ -203,10 +209,12 @@ function buildRow(
   actions: Action[],
   handlers: RowActionHandlers,
   failed: boolean,
+  locked: boolean,
 ): HTMLElement {
   const state = deriveRowState(entry);
   const row = el('div', `row${isWorktree ? ' wt' : ''} ${STATE_ROW_CLASS[state]}${failed ? ' fail' : ''}`);
-  row.tabIndex = 0;
+  // FR-004: removed from the tab order while a long operation runs, on top of the row dim.
+  row.tabIndex = locked ? -1 : 0;
 
   const glyphCell = el('div', 'glyph-cell');
   const glyph = el('span', `g ${failed ? 'g-fail' : STATE_GLYPH_CLASS[state]}`);
@@ -250,8 +258,8 @@ function buildRow(
 
   appendText(row, 'num changed', entry.availability === 'ok' ? relativeTime(entry.lastChange) : '—');
 
-  row.appendChild(buildMenuCell(entry, remote, actions, handlers));
-  row.appendChild(buildDeleteCell(entry, isWorktree, familyPath, handlers));
+  row.appendChild(buildMenuCell(entry, remote, actions, handlers, locked));
+  row.appendChild(buildDeleteCell(entry, isWorktree, familyPath, handlers, locked));
 
   return row;
 }
@@ -263,11 +271,22 @@ export function renderRows(
   actions: Action[],
   handlers: RowActionHandlers,
   failedPaths: Set<string>,
+  locked = false,
 ): void {
   listEl.innerHTML = '';
   for (const row of rows) {
     listEl.appendChild(
-      buildRow(row, row.remote, defaultHost, false, undefined, actions, handlers, failedPaths.has(row.fullPath)),
+      buildRow(
+        row,
+        row.remote,
+        defaultHost,
+        false,
+        undefined,
+        actions,
+        handlers,
+        failedPaths.has(row.fullPath),
+        locked,
+      ),
     );
     if (row.kind === 'repository') {
       // A worktree row inherits its primary's remote for `${2}` (worktree entries carry no remote of their own).
@@ -276,11 +295,73 @@ export function renderRows(
       // avoid a stale-snapshot race if the directory vanishes between render and click.
       for (const wt of row.worktrees) {
         listEl.appendChild(
-          buildRow(wt, row.remote, defaultHost, true, row.fullPath, actions, handlers, failedPaths.has(wt.fullPath)),
+          buildRow(
+            wt,
+            row.remote,
+            defaultHost,
+            true,
+            row.fullPath,
+            actions,
+            handlers,
+            failedPaths.has(wt.fullPath),
+            locked,
+          ),
         );
       }
     }
   }
+}
+
+const SKELETON_ROW_COUNT = 6;
+
+function skeletonBox(className: string): HTMLElement {
+  return el('div', `skel-box ${className}`);
+}
+
+// Mocked row for the initial-load skeleton: same grid as a real .row (so columns line up under
+// thead) but every cell is a plain light box — no real text, no state colour (nothing is known yet).
+function buildSkeletonRow(): HTMLElement {
+  const row = el('div', 'row skeleton');
+
+  const glyphCell = el('div', 'glyph-cell');
+  const clock = el('span', 'skel-clock');
+  clock.textContent = '⏱';
+  clock.setAttribute('aria-hidden', 'true');
+  glyphCell.appendChild(clock);
+  row.appendChild(glyphCell);
+
+  const nameCell = el('div', 'name-cell');
+  nameCell.appendChild(skeletonBox('skel-name'));
+  nameCell.appendChild(skeletonBox('skel-slug'));
+  row.appendChild(nameCell);
+
+  const branchCell = el('div', 'branch-cell');
+  branchCell.appendChild(skeletonBox('skel-branch'));
+  branchCell.appendChild(skeletonBox('skel-track'));
+  row.appendChild(branchCell);
+
+  const localCell = el('div', 'num');
+  localCell.appendChild(skeletonBox('skel-num'));
+  row.appendChild(localCell);
+
+  const abCell = el('div', 'num');
+  abCell.appendChild(skeletonBox('skel-num'));
+  row.appendChild(abCell);
+
+  const changedCell = el('div', 'num changed');
+  changedCell.appendChild(skeletonBox('skel-changed'));
+  row.appendChild(changedCell);
+
+  row.appendChild(el('div', 'menu'));
+  row.appendChild(el('div'));
+
+  return row;
+}
+
+/** Fills the list with mocked placeholder rows while the initial scan is in flight (no real data yet). */
+export function renderSkeletonRows(listEl: HTMLElement): void {
+  listEl.innerHTML = '';
+  for (let i = 0; i < SKELETON_ROW_COUNT; i++) listEl.appendChild(buildSkeletonRow());
 }
 
 export function updateSortIndicator(theadEl: HTMLElement, dimension: SortDimension, direction: SortDirection): void {

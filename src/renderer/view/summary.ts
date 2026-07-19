@@ -36,6 +36,7 @@ export function renderSummary(
   activeFilter: StateFilter,
   onFilterChange: (filter: StateFilter) => void,
   failedPaths: Set<string> = new Set(),
+  locked = false,
 ): void {
   const counts: Record<RowState, number> = { clean: 0, dirty: 0, 'out-of-sync': 0, unavailable: 0 };
   for (const row of rows) counts[deriveRowState(row)] += 1;
@@ -44,17 +45,24 @@ export function renderSummary(
   els.title.textContent = `Fleet — ${total} ${total === 1 ? 'repository' : 'repositories'}`;
 
   els.filters.innerHTML = '';
-  els.filters.appendChild(makeChip('all', total, activeFilter === 'all', () => onFilterChange('all')));
+  els.filters.appendChild(makeChip('all', total, activeFilter === 'all', () => onFilterChange('all'), undefined, locked));
   for (const state of STATES) {
     els.filters.appendChild(
-      makeChip(LABELS[state], counts[state], activeFilter === state, () => onFilterChange(state), SWATCH_CLASS[state]),
+      makeChip(
+        LABELS[state],
+        counts[state],
+        activeFilter === state,
+        () => onFilterChange(state),
+        SWATCH_CLASS[state],
+        locked,
+      ),
     );
   }
   // 'failed' is not a RowState (007 data-model.md R1): its count comes from failedPaths, not the
   // per-state tally above, and it's deliberately excluded from the sumbar segments below (R2) —
   // a failed repo usually overlaps an existing state, so counting it there would double-count rows.
   els.filters.appendChild(
-    makeChip('failed', failedPaths.size, activeFilter === 'failed', () => onFilterChange('failed'), 'sw-fail'),
+    makeChip('failed', failedPaths.size, activeFilter === 'failed', () => onFilterChange('failed'), 'sw-fail', locked),
   );
 
   els.sumbar.innerHTML = '';
@@ -74,10 +82,12 @@ function makeChip(
   active: boolean,
   onClick: () => void,
   swatchClass?: string,
+  locked = false,
 ): HTMLButtonElement {
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = `filter${active ? ' active' : ''}`;
+  btn.disabled = locked; // FR-015: blocked while a long operation runs — native disabled, no colour change
 
   if (swatchClass) {
     const swatch = document.createElement('span');
