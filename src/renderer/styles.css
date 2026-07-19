@@ -662,11 +662,19 @@ body {
   background: var(--muted);
 }
 
-/* refresh / pull-all button busy state (FR-012/FR-014, FR-009) */
+/* refresh / pull-all / cleanup button busy state (FR-012/FR-014, FR-009, FR-011) */
 .ctrl.refresh.busy,
-.ctrl.pull-all.busy {
+.ctrl.pull-all.busy,
+.ctrl.cleanup.busy {
   cursor: default;
   opacity: 0.7;
+}
+
+/* the OTHER bulk operation is running — dimmed, non-interactive, but not itself animating (FR-012) */
+.ctrl.disabled {
+  cursor: default;
+  opacity: 0.45;
+  pointer-events: none;
 }
 
 /* settings modal — observed directories (FR-002/FR-015/FR-016) */
@@ -971,6 +979,101 @@ body {
   filter: none;
 }
 
+/* cleanup review overlay (FR-008, research D8) — reuses .scrim/.modal/.modal-head/.modal-body/.modal-foot/.btn */
+.cleanup-group {
+  padding: 8px;
+}
+.cleanup-group:not(:last-child) {
+  border-bottom: 1px solid var(--line);
+}
+.cleanup-group-head {
+  padding: 6px 8px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+}
+.cleanup-list {
+  display: flex;
+  flex-direction: column;
+}
+.cleanup-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 8px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.cleanup-row:hover {
+  background: var(--surface-2);
+}
+.cleanup-checkbox {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--fg);
+  cursor: pointer;
+}
+.cleanup-label {
+  flex: 1;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cleanup-reason {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.cleanup-worktree-indicator {
+  color: var(--sync);
+  font-size: 13px;
+}
+.link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--muted);
+  font-family: var(--ui);
+  font-size: 12.5px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.link-btn:hover:not(:disabled) {
+  color: var(--fg);
+}
+.link-btn:disabled {
+  color: var(--faint);
+  text-decoration: none;
+  cursor: default;
+}
+.link-btn + .link-btn {
+  margin-left: 14px;
+}
+.cleanup-empty {
+  padding: 40px 20px;
+  text-align: center;
+}
+.cleanup-empty-art {
+  font-size: 40px;
+  line-height: 1;
+  margin-bottom: 14px;
+}
+.cleanup-empty-heading {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--fg);
+  margin-bottom: 6px;
+}
+.cleanup-empty-body {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
 /* entrance animation */
 @media (prefers-reduced-motion: no-preference) {
   .row {
@@ -987,7 +1090,8 @@ body {
     }
   }
   .ctrl.refresh.busy .spin-icon,
-  .ctrl.pull-all.busy .spin-icon {
+  .ctrl.pull-all.busy .spin-icon,
+  .ctrl.cleanup.busy .spin-icon {
     display: inline-block;
     animation: spin 0.8s linear infinite;
   }

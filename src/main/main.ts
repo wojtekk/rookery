@@ -8,7 +8,16 @@ import { scanAll } from './scan';
 import { launchCommand } from './actions/launch';
 import { computeDeleteRisk } from './delete';
 import { updateAll } from './update';
-import type { AddDirectoryResult, DeleteOutcome, DeleteTarget, Row, RunActionResult } from '../shared/types';
+import { scanCleanup, executeCleanup } from './cleanup';
+import type {
+  AddDirectoryResult,
+  CleanupOutcome,
+  CleanupSelection,
+  DeleteOutcome,
+  DeleteTarget,
+  Row,
+  RunActionResult,
+} from '../shared/types';
 
 let mainWindow: BrowserWindow | null = null;
 let lastSnapshot: Row[] = [];
@@ -189,6 +198,10 @@ function registerIpc(): void {
   );
   ipcMain.handle('deleteRow', (_e, target: DeleteTarget) => deleteRow(target));
   ipcMain.handle('updateAll', () => updateAll(lastSnapshot));
+  ipcMain.handle('scanCleanup', () => scanCleanup(lastSnapshot));
+  ipcMain.handle('executeCleanup', (_e, selection: CleanupSelection[]): Promise<CleanupOutcome[]> =>
+    executeCleanup(selection),
+  );
 }
 
 app.whenReady().then(() => {

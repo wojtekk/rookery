@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { Action, DeleteTarget, RepoDashboardApi, Settings } from '../shared/types';
+import type { Action, CleanupSelection, DeleteTarget, RepoDashboardApi, Settings } from '../shared/types';
 
 const api: RepoDashboardApi = {
   listRepositories: () => ipcRenderer.invoke('listRepositories'),
@@ -22,6 +22,8 @@ const api: RepoDashboardApi = {
     ipcRenderer.invoke('runAction', actionId, target),
   deleteRow: (target: DeleteTarget) => ipcRenderer.invoke('deleteRow', target),
   updateAll: () => ipcRenderer.invoke('updateAll'),
+  scanCleanup: () => ipcRenderer.invoke('scanCleanup'),
+  executeCleanup: (selection: CleanupSelection[]) => ipcRenderer.invoke('executeCleanup', selection),
 };
 
 contextBridge.exposeInMainWorld('repoDashboard', api);

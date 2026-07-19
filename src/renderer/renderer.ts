@@ -1,6 +1,6 @@
 // Bootstrap: calls IPC, holds view state (sort, state filter, worktree toggle), re-renders on change.
 
-import type { Row, Settings, RepoDashboardApi, UpdateResult } from '../shared/types';
+import type { CleanupResult, Row, Settings, RepoDashboardApi, UpdateResult } from '../shared/types';
 import { sortRows } from './view/sort.js';
 import { deriveRowState, filterRows, type StateFilter } from './view/filter.js';
 import { renderRows, updateSortIndicator, wireSortHeaders } from './view/table.js';
@@ -8,6 +8,7 @@ import { renderSummary } from './view/summary.js';
 import { renderToolbar } from './view/toolbar.js';
 import { renderEmptyState } from './view/empty.js';
 import { renderSettingsModal, openSettingsModal } from './view/settings.js';
+import { openCleanupOverlay, renderCleanupOverlay } from './view/cleanup.js';
 import { decideStartupScreen, remainingMinVisibleMs, LOADER_SHOW_DELAY_MS, type LoadState } from './view/loadstate.js';
 import { setLoaderVisible } from './view/loader.js';
 
@@ -30,6 +31,7 @@ const els = {
   loader: document.getElementById('loader') as HTMLElement,
   gitWarning: document.getElementById('gitWarning') as HTMLElement,
   settingsModal: document.getElementById('settingsModal') as HTMLElement,
+  cleanupOverlay: document.getElementById('cleanupOverlay') as HTMLElement,
   footLeft: document.getElementById('footLeft') as HTMLElement,
   footRight: document.getElementById('footRight') as HTMLElement,
 };
@@ -62,6 +64,7 @@ function showNotice(message: string): void {
 let stateFilter: StateFilter = 'all';
 let refreshing = false;
 let updating = false; // re-entry guard + toolbar spinner for "Pull all" (FR-009)
+let cleaning = false; // re-entry guard + toolbar spinner for "Cleanup"; mutually exclusive with updating (FR-012)
 let failedPaths = new Set<string>(); // paths with result 'failed' from the last "Pull all" run (FR-014)
 let loadState: LoadState = 'loading';
 let loaderShownAt: number | null = null;
@@ -96,7 +99,7 @@ async function doRefresh(opts: { pruneFixedFailed?: boolean } = {}): Promise<voi
 }
 
 async function doUpdateAll(): Promise<void> {
-  if (updating) return;
+  if (updating || cleaning) return; // FR-012: mutually exclusive with Cleanup
   updating = true;
   failedPaths = new Set();
   render();
@@ -114,10 +117,37 @@ async function doUpdateAll(): Promise<void> {
   await doRefresh();
 }
 
+/** Two-phase flow (contracts/ipc-cleanup.md): read-only scan -> review overlay -> remove selected. */
+async function doCleanup(): Promise<void> {
+  if (cleaning || updating) return; // FR-012: mutually exclusive with Pull all
+  cleaning = true;
+  render();
+
+  const plan = await api.scanCleanup();
+
+  openCleanupOverlay(plan, {
+    onConfirm: (selected) => {
+      void (async () => {
+        const outcomes = await api.executeCleanup(selected);
+        const counts: Record<CleanupResult, number> = { removed: 0, skipped: 0, failed: 0 };
+        for (const o of outcomes) counts[o.result]++;
+        showNotice(`Removed ${counts.removed} · ${counts.skipped} skipped · ${counts.failed} failed`); // FR-013
+        cleaning = false;
+        await doRefresh();
+      })();
+    },
+    onCancel: () => {
+      cleaning = false; // FR-009: nothing removed
+      render();
+    },
+  });
+  render();
+}
+
 function render(): void {
   renderToolbar(
     els.toolbar,
-    { showWorktrees: settings.showWorktrees, refreshing, updating },
+    { showWorktrees: settings.showWorktrees, refreshing, updating, cleaning },
     {
       onToggleWorktrees: (show) => {
         settings.showWorktrees = show;
@@ -126,6 +156,7 @@ function render(): void {
       },
       onRefresh: () => void doRefresh({ pruneFixedFailed: true }),
       onUpdateAll: () => void doUpdateAll(),
+      onCleanup: () => void doCleanup(),
       onOpenSettings: () => {
         openSettingsModal();
         render();
@@ -195,6 +226,8 @@ function render(): void {
       })();
     },
   });
+
+  renderCleanupOverlay(els.cleanupOverlay);
 
   els.footLeft.textContent = `Showing ${visible.length} of ${rows.length} · grouped by primary`;
   els.footRight.textContent = `last refresh ${new Date().toLocaleTimeString()} · no network traffic`;

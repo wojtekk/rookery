@@ -93,6 +93,32 @@ export interface RepoUpdateOutcome {
   result: UpdateResult;
 }
 
+// Cleanup (008 data-model.md): why a candidate was surfaced by the scan. Exactly one reason per
+// candidate; precedence gone-branch > missing-worktree > merged-worktree avoids double-listing.
+export type CleanupReason = 'gone-branch' | 'missing-worktree' | 'merged-worktree';
+
+// Output of the read-only scan phase (`scanCleanup`) — one removal candidate. `id` is the stable
+// overlay checkbox key and dedupe key: `${repoPath}::${branch ?? worktreePath}`.
+export interface CleanupCandidate {
+  repoPath: string;
+  repoSlug: string | null;
+  reason: CleanupReason;
+  branch: string | null;
+  worktreePath: string | null;
+  worktreeDirMissing: boolean;
+  id: string;
+}
+
+// The subset of scanned candidates the user left checked in the review overlay.
+export type CleanupSelection = CleanupCandidate;
+
+export type CleanupResult = 'removed' | 'skipped' | 'failed';
+
+export interface CleanupOutcome {
+  id: string;
+  result: CleanupResult;
+}
+
 // The typed surface exposed via contextBridge as `window.repoDashboard`. See contracts/ipc-api.md.
 export interface RepoDashboardApi {
   listRepositories(): Promise<Row[]>;
@@ -111,4 +137,6 @@ export interface RepoDashboardApi {
   runAction(actionId: string, target: { path: string; remoteUrl: string | null }): Promise<RunActionResult>;
   deleteRow(target: DeleteTarget): Promise<DeleteOutcome>;
   updateAll(): Promise<RepoUpdateOutcome[]>;
+  scanCleanup(): Promise<CleanupCandidate[]>;
+  executeCleanup(selection: CleanupSelection[]): Promise<CleanupOutcome[]>;
 }
