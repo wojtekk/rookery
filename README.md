@@ -139,8 +139,10 @@ creating the settings file the app reads on launch:
 
 ## Contributing
 
-This project is developed with the [Spec Kit](specs/) workflow — every
-feature has a spec, a plan, and a task breakdown before code is written:
+This project is developed with GitHub's [Spec Kit](https://github.com/github/spec-kit)
+workflow — every feature has a spec, a plan, and a task breakdown before code
+is written. Contributions are expected to follow the same process rather than
+landing as an unplanned pull request:
 
 1. `specs/<NNN-feature-name>/` holds `spec.md` (requirements), `plan.md`
    (architecture/tech decisions), `tasks.md` (the checklist), and supporting
