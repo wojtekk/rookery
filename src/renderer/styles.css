@@ -315,12 +315,30 @@ body {
 
 .list {
   border: 1px solid var(--line);
-  border-radius: 14px;
   overflow-y: auto;
   background: var(--surface);
   flex: 1;
   min-height: 0;
   transition: opacity 0.15s ease;
+}
+
+.list::-webkit-scrollbar {
+  width: 3px;
+}
+.list::-webkit-scrollbar-track {
+  background: transparent;
+}
+.list::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 4px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .list::-webkit-scrollbar-thumb {
+    transition: background-color 0.5s ease;
+  }
+}
+.list.scrolling::-webkit-scrollbar-thumb {
+  background: var(--line-2);
 }
 
 /* long operation running — rows stay clickable, this is a visual cue only (FR-004) */
