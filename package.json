@@ -11,7 +11,9 @@
     "copy-assets": "node -e \"const fs=require('fs');fs.mkdirSync('dist/renderer/src/renderer',{recursive:true});fs.mkdirSync('dist/assets',{recursive:true});fs.copyFileSync('src/renderer/index.html','dist/renderer/src/renderer/index.html');fs.copyFileSync('src/renderer/styles.css','dist/renderer/src/renderer/styles.css');fs.copyFileSync('src/assets/icon.png','dist/assets/icon.png');\"",
     "start": "pnpm run build && electron .",
     "test": "pnpm run build && node --test dist/tests/*.test.js",
-    "dist": "electron-builder --publish=never"
+    "dist": "electron-builder --publish=never",
+    "preversion": "pnpm test",
+    "postversion": "git push --follow-tags"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

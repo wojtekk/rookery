@@ -1,3 +1,5 @@
+<img src="src/assets/icon.png" width="72" align="left">
+
 # Rookery - Local Git Organizer
 
 [![Test](https://github.com/wojtekk/rookery/actions/workflows/test.yml/badge.svg)](https://github.com/wojtekk/rookery/actions/workflows/test.yml)
@@ -8,6 +10,8 @@ A local, single-user Electron app for developers who work across many
 locally-cloned git repositories at once: it lists them and shows their state
 at a glance — branch, tracking, uncommitted changes, ahead/behind — without
 running `git status` in a terminal across every folder yourself.
+
+<br clear="left">
 
 ![Rookery](docs/assets/rookery-screen-1.png)
 
@@ -196,9 +200,13 @@ that tag with all three attached (`rookery-<version>.dmg`,
 platform fails, no release is created or updated. Re-pushing the same tag
 replaces that release's assets rather than duplicating them.
 
-To cut a release: bump `version` in `package.json`, commit, then tag and push:
+To cut a release, run one command from `main`:
 
 ```bash
-git tag v1.2.0
-git push origin v1.2.0
+pnpm version 1.2.0        # or: patch / minor / major / prerelease --preid=alpha
 ```
+
+This runs the test suite first and aborts if it fails (`preversion`), then
+bumps `package.json`, commits (`vX.Y.Z`), tags, and pushes both the commit
+and the tag (`postversion`) — which is what actually triggers the workflow
+above.
