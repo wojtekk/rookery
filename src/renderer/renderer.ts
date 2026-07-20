@@ -69,6 +69,8 @@ let failedPaths = new Set<string>(); // paths with result 'failed' from the last
 let loadState: LoadState = 'loading';
 let busyShowTimer: ReturnType<typeof setTimeout> | undefined;
 let busyLoaderShownAt: number | null = null;
+const REVEAL_HIDE_DELAY_MS = 1000;
+let revealHideTimer: ReturnType<typeof setTimeout> | undefined;
 
 /** Row + sort-header dim and table loader paint after the show-delay (FR-004/005/014); every other
  *  control's block is immediate via render(). */
@@ -93,6 +95,18 @@ function endBusyLock(): void {
   const wait = remainingMinVisibleMs(busyLoaderShownAt, Date.now());
   if (wait > 0) setTimeout(finish, wait);
   else finish();
+}
+
+/** Reveal the table scrollbar and (re)start the hide countdown (US2/US3). */
+function revealScrollbar(): void {
+  els.list.classList.add('scrolling');
+  scheduleScrollbarHide();
+}
+
+/** (Re)start the countdown that hides the scrollbar after inactivity, without revealing it. */
+function scheduleScrollbarHide(): void {
+  clearTimeout(revealHideTimer);
+  revealHideTimer = setTimeout(() => els.list.classList.remove('scrolling'), REVEAL_HIDE_DELAY_MS);
 }
 
 // A manual refresh re-reads local git state only (Principle II — no fetch), so it can only prove a
@@ -322,6 +336,10 @@ wireSortHeaders(els.thead, (dimension) => {
   void api.setSort(settings.sortDimension, settings.sortDirection);
   render();
 });
+
+els.list.addEventListener('scroll', revealScrollbar);
+els.list.addEventListener('mouseenter', revealScrollbar);
+els.list.addEventListener('mouseleave', scheduleScrollbarHide);
 
 void (async () => {
   await checkGitStatus();

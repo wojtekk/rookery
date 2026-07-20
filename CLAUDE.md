@@ -1,7 +1,7 @@
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-`specs/010-open-source-release/plan.md`
+`specs/011-custom-table-scrollbar/plan.md`
 
 Active feature: **Publish as a Public Open-Source Project on GitHub**
 (`specs/010-open-source-release/plan.md`) — rename the public GitHub repo
