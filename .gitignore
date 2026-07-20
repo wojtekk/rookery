@@ -3,6 +3,7 @@ tooltip-check.png
 node_modules
 dist/
 out/
+release/
 CLAUDE.local.md
 .claude/settings.local.json
 .vscode/
