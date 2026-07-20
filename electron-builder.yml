@@ -1,0 +1,17 @@
+appId: dev.wojtekk.rookery
+productName: Rookery
+directories:
+  output: release
+files:
+  - dist/**/*
+  - package.json
+mac:
+  target: dmg
+  artifactName: "${name}-${version}.${ext}"
+win:
+  target: nsis
+nsis:
+  artifactName: "${name}-${version}-setup.${ext}"
+linux:
+  target: AppImage
+  artifactName: "${name}-${version}.${ext}"

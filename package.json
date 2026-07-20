@@ -3,20 +3,25 @@
   "productName": "Rookery",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@10.15.1",
   "description": "Rookery — Local git organized. An Electron dashboard for managing locally-cloned git repositories.",
   "main": "dist/src/main/main.js",
   "scripts": {
     "build": "tsc -p tsconfig.json && tsc -p tsconfig.renderer.json && pnpm run copy-assets",
     "copy-assets": "mkdir -p dist/renderer/src/renderer dist/assets && cp src/renderer/index.html src/renderer/styles.css dist/renderer/src/renderer/ && cp src/assets/icon.png dist/assets/",
     "start": "pnpm run build && electron .",
-    "test": "pnpm run build && node --test dist/tests/*.test.js"
+    "test": "pnpm run build && node --test dist/tests/*.test.js",
+    "dist": "electron-builder --publish=never"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "electron": "40.8.5",
+    "electron-builder": "^26.15.3",
     "typescript": "^5.5.0"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["electron"]
+    "onlyBuiltDependencies": [
+      "electron"
+    ]
   }
 }
