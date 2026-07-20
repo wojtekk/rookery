@@ -1,9 +1,33 @@
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-`specs/009-block-ui-during-operations/plan.md`
+`specs/010-open-source-release/plan.md`
 
-Active feature: **Block UI During Long Operations**
+Active feature: **Publish as a Public Open-Source Project on GitHub**
+(`specs/010-open-source-release/plan.md`) — rename the public GitHub repo
+`git-manager` → `rookery`; add `.github/workflows/test.yml` (push/PR, `pnpm
+test`, `ubuntu-latest` only — the suite is platform-agnostic); add
+`.github/workflows/release.yml` (tag `v*.*.*` → 3-OS `electron-builder`
+matrix build, unsigned/unnotarized, then a `publish` job gated on `needs:
+build` so a GitHub Release with all three assets — `rookery-<version>.dmg`,
+`rookery-<version>-setup.exe`, `rookery-<version>.AppImage` — is only ever
+created if all three platforms succeed, never partially); add root
+`LICENSE` (MIT + Commons Clause 1.0 — free use/modification for everyone
+including businesses, no selling/monetizing the software itself,
+source-available rather than OSI-approved open source); extend the existing
+README with badges, a purpose statement, a Download section (with
+Gatekeeper/SmartScreen bypass instructions), a License summary, and an
+updated "Releasing it" section replacing its stale "no packaged distribution
+yet" text. No application source code changes. **Planning complete
+(research.md, data-model.md, contracts/ci-workflow.md,
+contracts/release-workflow.md, quickstart.md all generated); tasks.md not
+yet generated (`/speckit-tasks`) and no implementation has started.** One
+manual, explicitly-confirmed prerequisite outside file changes: this repo
+has no git remote configured yet, so the actual "create the public `rookery`
+repo on GitHub and push" step must happen before any of the workflows can
+run for real (see research.md §10).
+
+Prior feature: **Block UI During Long Operations**
 (`specs/009-block-ui-during-operations/plan.md`, Spec = **Revision
 2026-07-19e**) — while one of Refresh, Pull all, or Cleanup runs, the system
 blocks essentially every control that operates on repositories or
