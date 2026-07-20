@@ -28,7 +28,7 @@ block writing the files in US1–US3 (those have no code dependency on it) — o
 their Checkpoints (actually seeing a check run, a release publish, or a working
 Releases link) need it.
 
-- [ ] T001 **MANUAL — do not run automatically, confirm with the maintainer first.** Create a public GitHub repository named `rookery`; push this repository's existing history to it as `origin`/`main`; confirm GitHub Actions is enabled (default for public repos). No file path — this is a one-time GitHub-side action, not a code change (research.md §10). Renaming/creating a public repo and pushing history for the first time is a hard-to-reverse, externally-visible action — get explicit sign-off before doing it, and do it manually or via `gh` with the maintainer present, not as an unattended task.
+- [X] T001 **MANUAL — do not run automatically, confirm with the maintainer first.** Create a public GitHub repository named `rookery`; push this repository's existing history to it as `origin`/`main`; confirm GitHub Actions is enabled (default for public repos). No file path — this is a one-time GitHub-side action, not a code change (research.md §10). Renaming/creating a public repo and pushing history for the first time is a hard-to-reverse, externally-visible action — get explicit sign-off before doing it, and do it manually or via `gh` with the maintainer present, not as an unattended task. **Done**: maintainer created `wojtekk/rookery`, rewrote `main`'s author history to the personal identity, and pushed — confirmed via `git ls-remote origin` matching local `main` (`34c4267`) exactly.
 
 ---
 
@@ -38,7 +38,7 @@ Releases link) need it.
 
 **⚠️ CRITICAL**: T003 and T006 both depend on this — do it before either workflow file is expected to actually run (writing the files themselves doesn't require it, but don't validate a Checkpoint before this lands).
 
-- [ ] T002 Add `"packageManager": "pnpm@<major>.x.x"` to `package.json`, pinning the pnpm major version the maintainer standardizes on (research.md §9)
+- [X] T002 Add `"packageManager": "pnpm@<major>.x.x"` to `package.json`, pinning the pnpm major version the maintainer standardizes on (research.md §9)
 
 **Checkpoint**: `package.json` has a `packageManager` field; both workflows can now resolve a pnpm version without any per-workflow `version:` input.
 
@@ -54,7 +54,7 @@ GitHub (FR-002, FR-003).
 branch/PR, confirm a failing check appears on GitHub without running anything
 locally; fix it, confirm the check turns green.
 
-- [ ] T003 [US1] Create `.github/workflows/test.yml`: `on: push: branches: ['**']` (all branches, tags excluded — avoids double-triggering alongside release.yml on a tag push) and `on: pull_request`; single job named `test` on `ubuntu-latest`; steps `actions/checkout` → `actions/setup-node` (`node-version-file: .nvmrc`) → `pnpm/action-setup` → `pnpm install --frozen-lockfile` → `pnpm test` (per contracts/ci-workflow.md, research.md §6) (depends on T002)
+- [X] T003 [US1] Create `.github/workflows/test.yml`: `on: push: branches: ['**']` (all branches, tags excluded — avoids double-triggering alongside release.yml on a tag push) and `on: pull_request`; single job named `test` on `ubuntu-latest`; steps `actions/checkout` → `actions/setup-node` (`node-version-file: .nvmrc`) → `pnpm/action-setup` → `pnpm install --frozen-lockfile` → `pnpm test` (per contracts/ci-workflow.md, research.md §6) (depends on T002)
 
 **Checkpoint**: Run quickstart.md Scenario 1 against the live `rookery` repo (T001). User Story 1 is complete and independently testable here — nothing else in this feature needs to exist for it to work.
 
@@ -73,9 +73,9 @@ the release entirely; confirm re-pushing the same tag replaces assets rather
 than duplicating (Scenario 2's negative/re-tag checks). Scenario 3 confirms the
 documented Gatekeeper/SmartScreen bypass actually works on real machines.
 
-- [ ] T004 [P] [US2] Add `electron-builder` to `devDependencies` in `package.json`; add a build-only script (e.g. `"dist": "electron-builder --publish=never"`) — no built-in publish step, this only produces local artifacts (research.md §1, §3)
-- [ ] T005 [P] [US2] Create `electron-builder.yml` at repo root: `appId`, `productName: Rookery`, `directories.output: release` (**must not be left as the default `dist/`** — that's already the TypeScript build's output directory, per research.md §1/finding I1), `files: ['dist/**/*', 'package.json']` (explicit allowlist so the packaged app doesn't pick up `specs/`, `tests/`, or other repo content — finding U1), mac target `dmg`, Windows target `nsis`, Linux target `AppImage`, artifact filenames `rookery-${version}.dmg` / `rookery-${version}-setup.exe` / `rookery-${version}.AppImage` (research.md §2, data-model.md — note: `CSC_IDENTITY_AUTO_DISCOVERY=false` is a CI *environment variable* for the mac build, not something this config file sets)
-- [ ] T006 [US2] Create `.github/workflows/release.yml`: `on: push: tags: ['v*.*.*']`; `build` matrix job (`macos-latest`, `windows-latest`, `ubuntu-latest`) — checkout, `actions/setup-node` (`node-version-file: .nvmrc`), `pnpm/action-setup`, `pnpm install --frozen-lockfile`, `pnpm run build`, run the `dist` script from T004 (mac leg sets `CSC_IDENTITY_AUTO_DISCOVERY=false`), `actions/upload-artifact` per OS sourced from `release/` (T005's `directories.output`); `publish` job with `needs: build` — `actions/download-artifact` (all three), `softprops/action-gh-release` with `tag_name: ${{ github.ref_name }}`, `generate_release_notes: true` (finding U3), and `files:` covering all three downloaded artifacts (contracts/release-workflow.md, research.md §3–§5) (depends on T002, T004, T005)
+- [X] T004 [P] [US2] Add `electron-builder` to `devDependencies` in `package.json`; add a build-only script (e.g. `"dist": "electron-builder --publish=never"`) — no built-in publish step, this only produces local artifacts (research.md §1, §3)
+- [X] T005 [P] [US2] Create `electron-builder.yml` at repo root: `appId`, `productName: Rookery`, `directories.output: release` (**must not be left as the default `dist/`** — that's already the TypeScript build's output directory, per research.md §1/finding I1), `files: ['dist/**/*', 'package.json']` (explicit allowlist so the packaged app doesn't pick up `specs/`, `tests/`, or other repo content — finding U1), mac target `dmg`, Windows target `nsis`, Linux target `AppImage`, artifact filenames `rookery-${version}.dmg` / `rookery-${version}-setup.exe` / `rookery-${version}.AppImage` (research.md §2, data-model.md — note: `CSC_IDENTITY_AUTO_DISCOVERY=false` is a CI *environment variable* for the mac build, not something this config file sets)
+- [X] T006 [US2] Create `.github/workflows/release.yml`: `on: push: tags: ['v*.*.*']`; `build` matrix job (`macos-latest`, `windows-latest`, `ubuntu-latest`) — checkout, `actions/setup-node` (`node-version-file: .nvmrc`), `pnpm/action-setup`, `pnpm install --frozen-lockfile`, `pnpm run build`, run the `dist` script from T004 (mac leg sets `CSC_IDENTITY_AUTO_DISCOVERY=false`), `actions/upload-artifact` per OS sourced from `release/` (T005's `directories.output`); `publish` job with `needs: build` — `actions/download-artifact` (all three), `softprops/action-gh-release` with `tag_name: ${{ github.ref_name }}`, `generate_release_notes: true` (finding U3), and `files:` covering all three downloaded artifacts (contracts/release-workflow.md, research.md §3–§5) (depends on T002, T004, T005)
 
 **Checkpoint**: Run quickstart.md Scenarios 2 and 3 against the live `rookery` repo. Independently testable — doesn't require US1 or US3 to exist.
 
@@ -92,8 +92,8 @@ FR-013's README-facing half).
 item) and Scenario 5 (LICENSE content correctness) — both readable/checkable
 without US1 or US2 actually running.
 
-- [ ] T007 [P] [US3] Create `LICENSE` at repo root: the unmodified Commons Clause License Condition v1.0 text, followed by the unmodified MIT License text it modifies, with the correct copyright line (research.md §7, data-model.md)
-- [ ] T008 [US3] Update `README.md`: badges row (CI status, license, latest release) + an opening "what this is" paragraph near the top (FR-007); a "Download" section linking to the GitHub Releases page with Gatekeeper/SmartScreen bypass instructions (FR-008, FR-013); a "License" section summarizing MIT + Commons Clause in plain language — explicitly noting it's source-available, not OSI-approved open source — linking to `LICENSE` (FR-012); extend the existing "Contributing" section with the expected change-proposal process (FR-009); rewrite the existing "Releasing it" section (currently claims "there's no packaged distribution yet") to describe the real tag-triggered automated release flow (data-model.md) (depends on T007 for the LICENSE link/summary to be accurate, and on T006 for the "Releasing it" section to describe the real workflow)
+- [X] T007 [P] [US3] Create `LICENSE` at repo root: the unmodified Commons Clause License Condition v1.0 text, followed by the unmodified MIT License text it modifies, with the correct copyright line (research.md §7, data-model.md)
+- [X] T008 [US3] Update `README.md`: badges row (CI status, license, latest release) + an opening "what this is" paragraph near the top (FR-007); a "Download" section linking to the GitHub Releases page with Gatekeeper/SmartScreen bypass instructions (FR-008, FR-013); a "License" section summarizing MIT + Commons Clause in plain language — explicitly noting it's source-available, not OSI-approved open source — linking to `LICENSE` (FR-012); extend the existing "Contributing" section with the expected change-proposal process (FR-009); rewrite the existing "Releasing it" section (currently claims "there's no packaged distribution yet") to describe the real tag-triggered automated release flow (data-model.md) (depends on T007 for the LICENSE link/summary to be accurate, and on T006 for the "Releasing it" section to describe the real workflow)
 
 **Checkpoint**: Run quickstart.md Scenarios 4 and 5. All three user stories are now independently complete.
 
@@ -103,7 +103,7 @@ without US1 or US2 actually running.
 
 **Purpose**: Final sign-off once all three stories are in place.
 
-- [ ] T009 [P] Run `pnpm run build && pnpm test` locally to confirm the new `electron-builder` devDependency, `electron-builder.yml`, and `packageManager` field don't break the existing build/test pipeline
+- [X] T009 [P] Run `pnpm run build && pnpm test` locally to confirm the new `electron-builder` devDependency, `electron-builder.yml`, and `packageManager` field don't break the existing build/test pipeline
 - [ ] T010 Full `quickstart.md` walkthrough (all 5 scenarios, in order) against the live `rookery` repo as a final sign-off pass
 
 ---

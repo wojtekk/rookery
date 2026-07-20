@@ -1,9 +1,13 @@
 # Rookery - Local Git Organizer
 
-A local, single-user Electron app that lists the git repositories you've cloned
-on your own machine and shows their state at a glance — branch, tracking,
-uncommitted changes, ahead/behind — without running `git status` in a terminal
-across every folder yourself.
+[![Test](https://github.com/wojtekk/rookery/actions/workflows/test.yml/badge.svg)](https://github.com/wojtekk/rookery/actions/workflows/test.yml)
+[![License](https://img.shields.io/badge/license-MIT%20%2B%20Commons%20Clause-blue)](LICENSE)
+[![Latest Release](https://img.shields.io/github/v/release/wojtekk/rookery)](https://github.com/wojtekk/rookery/releases/latest)
+
+A local, single-user Electron app for developers who work across many
+locally-cloned git repositories at once: it lists them and shows their state
+at a glance — branch, tracking, uncommitted changes, ahead/behind — without
+running `git status` in a terminal across every folder yourself.
 
 ![Rookery](docs/assets/rookery-screen-1.png)
 
@@ -22,6 +26,20 @@ approved visual design is in
 several items there (pull, branch/worktree deletion, fetch-all, external-tool
 launchers) are deliberately out of scope for this feature and deferred to later
 ones.
+
+## Download
+
+Prebuilt macOS, Windows, and Linux builds are published on the
+[GitHub Releases page](https://github.com/wojtekk/rookery/releases/latest) for
+every tagged version. Builds are unsigned and unnotarized (see
+[Releasing it](#releasing-it)), so your OS will warn you the first time you
+open one:
+
+- **macOS**: Gatekeeper blocks the `.dmg`'s app with "cannot verify developer."
+  Right-click (or Control-click) the app → **Open** → **Open** again in the
+  dialog. This is only needed the first time.
+- **Windows**: SmartScreen blocks the `.exe` installer with "Windows protected
+  your PC." Click **More info** → **Run anyway**.
 
 ## Current status
 
@@ -148,16 +166,37 @@ touches the UI, exercise it against a real directory of repos (there's no
 automated UI test suite by design — `quickstart.md` in each feature's spec
 folder has the manual validation scenarios).
 
+For a large change, open an issue first to agree on the approach before
+writing code — small fixes can go straight to a pull request. Every push and
+pull request runs the test suite automatically (see the Test badge above);
+a pull request should have a green check before it's considered for merge.
+
+## License
+
+Rookery is licensed under the **MIT License, modified by the Commons Clause
+License Condition 1.0** — see [`LICENSE`](LICENSE) for the full text. In
+plain language: anyone, including businesses, is free to use, run, modify,
+and contribute to the project; what's **not** permitted is selling the
+software itself, or offering a product or service whose value comes
+substantially from it, for a fee. This makes Rookery **source-available**
+rather than an OSI-approved open-source license — the sales restriction is
+exactly what the Open Source Definition disallows.
+
 ## Releasing it
 
-There's no packaged distribution yet — this is a personal, single-user tool
-run from source (`pnpm start`). If packaging ever becomes worth it (a signed,
-double-clickable app instead of `pnpm start`), the natural next step is adding
-[`electron-builder`](https://www.electron.build/) or
-[Electron Forge](https://www.electronforge.io/) behind a new `package` script;
-per the constitution's minimal-footprint principle, that's a dependency to add
-only when actually needed, not preemptively.
+Pushing a `v<major>.<minor>.<patch>` tag (e.g. `v1.2.0`) triggers
+[`.github/workflows/release.yml`](.github/workflows/release.yml): it builds
+unsigned macOS, Windows, and Linux artifacts with
+[`electron-builder`](https://www.electron.build/) in parallel, and only if
+**all three** platforms succeed does it publish a single GitHub Release for
+that tag with all three attached (`rookery-<version>.dmg`,
+`rookery-<version>-setup.exe`, `rookery-<version>.AppImage`) — if any
+platform fails, no release is created or updated. Re-pushing the same tag
+replaces that release's assets rather than duplicating them.
 
-Until then, "releasing" is just: merge the feature branch to `main`, bump
-`version` in `package.json` if it's meaningful to you, and run it with
-`pnpm start`.
+To cut a release: bump `version` in `package.json`, commit, then tag and push:
+
+```bash
+git tag v1.2.0
+git push origin v1.2.0
+```
