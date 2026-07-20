@@ -1,4 +1,4 @@
-# Local Repository Dashboard (git-manager)
+# Rookery - Local Git Organizer
 
 A local, single-user Electron app that lists the git repositories you've cloned
 on your own machine and shows their state at a glance — branch, tracking,
