@@ -2,6 +2,7 @@ appId: dev.wojtekk.rookery
 productName: Rookery
 directories:
   output: release
+publish: null
 files:
   - dist/**/*
   - package.json
