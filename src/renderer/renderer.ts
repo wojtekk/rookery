@@ -109,6 +109,18 @@ function scheduleScrollbarHide(): void {
   revealHideTimer = setTimeout(() => els.list.classList.remove('scrolling'), REVEAL_HIDE_DELAY_MS);
 }
 
+// Tooltip box height (~30px: padding + line height + border) plus its 8px gap, rounded up.
+const TOOLTIP_MIN_SPACE_PX = 40;
+
+/** Flip a row-edge icon's tooltip upward when there's no room below it in the *visible* list — a
+ *  scroll-position fact `:last-child` can't express, since the last DOM row isn't necessarily the
+ *  last one in view (012 edge case). Covers the delete icon and every configurable .menu action
+ *  icon — both anchor their tooltip from an icon at/near the row's right edge. */
+function positionRowIconTooltip(btn: HTMLElement): void {
+  const spaceBelow = els.list.getBoundingClientRect().bottom - btn.getBoundingClientRect().bottom;
+  btn.classList.toggle('tip-up', spaceBelow < TOOLTIP_MIN_SPACE_PX);
+}
+
 // A manual refresh re-reads local git state only (Principle II — no fetch), so it can only prove a
 // failed repo was fixed when that fix is itself locally visible (e.g. the user resolved the
 // divergence/conflict themselves). ponytail: a failure whose repo already looked clean before "Pull
@@ -340,6 +352,14 @@ wireSortHeaders(els.thead, (dimension) => {
 els.list.addEventListener('scroll', revealScrollbar);
 els.list.addEventListener('mouseenter', revealScrollbar);
 els.list.addEventListener('mouseleave', scheduleScrollbarHide);
+
+// Delegated (rows are re-created on every render) — 'mouseover' bubbles, unlike 'mouseenter'.
+els.list.addEventListener('mouseover', (e) => {
+  const target = e.target;
+  if (!(target instanceof Element)) return;
+  const btn = target.closest('.row-delete-ico, .row-action-ico');
+  if (btn instanceof HTMLElement) positionRowIconTooltip(btn);
+});
 
 void (async () => {
   await checkGitStatus();

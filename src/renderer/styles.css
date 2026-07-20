@@ -704,10 +704,18 @@ body {
   z-index: 40;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
 }
-/* The menu column sits at the row's right edge — grow the tooltip leftward instead of clipping. */
-.menu [data-tip]:hover::after {
+/* The menu column and delete icon sit at the row's right edge — grow the tooltip leftward instead of clipping. */
+.menu [data-tip]:hover::after,
+.row-delete-ico[data-tip]:hover::after {
   left: auto;
   right: 0;
+}
+/* Flipped upward by renderer.ts (positionRowIconTooltip) when there's no room below in the
+   *visible* list — the last visible row isn't necessarily the last row in the DOM. Covers the
+   delete icon and every configurable .menu action icon. */
+.tip-up[data-tip]:hover::after {
+  top: auto;
+  bottom: calc(100% + 8px);
 }
 /* directory-path tooltip only (FR-017) — suppressed while a long operation runs; every other
    row tooltip (action name, delete, failed-pull glyph) is unaffected. */
