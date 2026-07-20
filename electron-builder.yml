@@ -1,5 +1,6 @@
 appId: dev.wojtekk.rookery
 productName: Rookery
+icon: src/assets/icon.png
 directories:
   output: release
 publish: null
