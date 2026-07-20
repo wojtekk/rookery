@@ -18,14 +18,18 @@ source-available rather than OSI-approved open source); extend the existing
 README with badges, a purpose statement, a Download section (with
 Gatekeeper/SmartScreen bypass instructions), a License summary, and an
 updated "Releasing it" section replacing its stale "no packaged distribution
-yet" text. No application source code changes. **Planning complete
-(research.md, data-model.md, contracts/ci-workflow.md,
-contracts/release-workflow.md, quickstart.md all generated); tasks.md not
-yet generated (`/speckit-tasks`) and no implementation has started.** One
-manual, explicitly-confirmed prerequisite outside file changes: this repo
-has no git remote configured yet, so the actual "create the public `rookery`
-repo on GitHub and push" step must happen before any of the workflows can
-run for real (see research.md §10).
+yet" text. No application source code changes. **Implementation complete
+through T009** (`packageManager` pin, `test.yml`, `release.yml`,
+`electron-builder.yml`, `LICENSE`, README updates) — build and all 102 tests
+pass. **T010 (the full 5-scenario `quickstart.md` walkthrough against the
+live `rookery` repo) is still owed** before this is considered fully
+validated — it requires pushing a real tag and observing GitHub Actions/a
+live Release, which an agent cannot do from this environment. The one
+manual, explicitly-confirmed prerequisite outside file changes — creating
+the public `rookery` repo on GitHub (under the `wojtekk` account) and
+pushing `main` to it — is **done** (research.md §10); `origin` is
+`git@github.com-personal:wojtekk/rookery.git` and GitHub Actions should now
+run `test.yml` on every push/PR automatically.
 
 Prior feature: **Block UI During Long Operations**
 (`specs/009-block-ui-during-operations/plan.md`, Spec = **Revision
