@@ -5,6 +5,8 @@ on your own machine and shows their state at a glance — branch, tracking,
 uncommitted changes, ahead/behind — without running `git status` in a terminal
 across every folder yourself.
 
+![Rookery](docs/assets/rookery-screen-1.png)
+
 It is **local-only by design**: it shells out to your already-installed system
 `git` (using your existing credentials) to inspect and act on repositories, and
 makes no network calls of its own. See
