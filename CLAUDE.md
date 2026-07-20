@@ -1,9 +1,35 @@
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-`specs/011-custom-table-scrollbar/plan.md`
+`specs/012-fix-delete-tooltip/plan.md`
 
-Active feature: **Publish as a Public Open-Source Project on GitHub**
+Active feature: **Fix Delete Button Tooltip Clipping**
+(`specs/012-fix-delete-tooltip/plan.md`) — the delete icon's (and every
+configurable per-row action icon's) hover tooltip was clipped at the table's
+right edge, and — on whichever row is last **visible** in a scrolled or short
+window, not necessarily the table's actual last row — also clipped
+vertically with no room to grow downward; a related unstyled
+`::-webkit-scrollbar-corner` white-box artifact was also exposed by feature
+011's `border-radius` removal. Fix: reuse `.menu`'s existing `left: auto;
+right: 0` right-edge tooltip alignment for `.row-delete-ico` too
+(`styles.css`); add a `.tip-up[data-tip]:hover::after` rule plus a
+`mouseover`-delegated `positionRowIconTooltip()` measurement in
+`renderer.ts` (mirrors the existing scrollbar-reveal class-toggle pattern)
+that flips the tooltip upward when there's no room below in the *visible*
+list — a scroll-position fact a static `:last-child` selector can't express
+(a `:last-child`-only attempt was tried first and replaced after manual
+testing disproved it). Applies uniformly to the delete icon and every
+configurable `.menu` action icon (FR-006, added after user-reported testing
+found the same bug there). No `::-webkit-scrollbar-corner` styling is added —
+scoped to the specific overflow trigger, per an explicit clarification.
+**Renderer-only**: no new dependency, no IPC/main-process change, no
+persisted setting. Build and all 102 tests pass. **T002 and T004 (manual
+`quickstart.md` hover walkthroughs) are in progress directly with the user**
+— two real implementation gaps (the last-*visible*-vs-last-DOM-row distinction;
+extending the fix to custom action icons) were already found and fixed via
+that live testing; final confirmation is still pending.
+
+Prior feature: **Publish as a Public Open-Source Project on GitHub**
 (`specs/010-open-source-release/plan.md`) — rename the public GitHub repo
 `git-manager` → `rookery`; add `.github/workflows/test.yml` (push/PR, `pnpm
 test`, `ubuntu-latest` only — the suite is platform-agnostic); add
@@ -31,7 +57,14 @@ pushing `main` to it — is **done** (research.md §10); `origin` is
 `git@github.com-personal:wojtekk/rookery.git` and GitHub Actions should now
 run `test.yml` on every push/PR automatically.
 
-Prior feature: **Block UI During Long Operations**
+Prior features: **Add Auto-Hiding Thin Scrollbar to the Repository Table**
+(`specs/011-custom-table-scrollbar/plan.md`) — replaced the OS-default
+scrollbar on the table's one scrollable region (`.list`) with a thin,
+auto-hiding overlay scrollbar (idle-hidden, revealed on scroll/hover/keyboard
+navigation, faded back out ~1s after activity stops); CSS `::-webkit-scrollbar`
+styling plus a `.scrolling` class toggle in `renderer.ts`; dropped `.list`'s
+`border-radius` (later found to have exposed an unstyled scrollbar-corner
+artifact, fixed under feature 012 above). **Block UI During Long Operations**
 (`specs/009-block-ui-during-operations/plan.md`, Spec = **Revision
 2026-07-19e**) — while one of Refresh, Pull all, or Cleanup runs, the system
 blocks essentially every control that operates on repositories or
@@ -54,36 +87,31 @@ clears every lock/dim (FR-013). Still **no whole-viewport dim and no native
 `inert`** — every control is blocked individually by its own render logic
 (native `<button disabled>` for filter chips/row actions; conditional
 `wireActivate` + CSS override for the toolbar's `<div role="button">`
-controls; a guarded callback for the sort header). The **constitution was
-amended a second time, to v3.0.0** (Principle IV re-expanded after v2.0.0's
-narrowing proved too narrow); `plan.md`, `research.md`, `data-model.md`,
-`contracts/ui-lockout.md`, `quickstart.md`, and `tasks.md` are regenerated to
-match. **Implementation is complete through T015** (T001–T009 = the
-2.0.0-scoped per-row/per-button foundation; T010–T015 = the 3.0.0-scoped
-extension) — build and all 102 tests pass. **T009 and T016 (manual
-`quickstart.md` click-throughs) are still owed** before merge — an agent
-cannot drive real mouse/keyboard/hover interaction against the Electron
-window from this environment.
-
-Prior features: **Cleanup Gone Branches and Worktrees**
-(`specs/008-branch-cleanup/plan.md`) — a header "Cleanup" button that removes
-`[gone]` branches and stale worktrees per repository after a review overlay,
-via two IPC methods (`scanCleanup`, `executeCleanup`); `git worktree remove`
-without `--force` (with `--force` only for missing-directory worktrees).
-**Filter Repositories Needing Attention**
+controls; a guarded callback for the sort header). The constitution was
+amended a second time, to v3.0.0 (Principle IV re-expanded after v2.0.0's
+narrowing proved too narrow). **Implementation is complete through T015**
+(T001–T009 = the 2.0.0-scoped per-row/per-button foundation; T010–T015 = the
+3.0.0-scoped extension) — build and all 102 tests pass. **T009 and T016
+(manual `quickstart.md` click-throughs) are still owed** before merge — an
+agent cannot drive real mouse/keyboard/hover interaction against the
+Electron window from this environment. **Cleanup Gone Branches and
+Worktrees** (`specs/008-branch-cleanup/plan.md`) — a header "Cleanup" button
+that removes `[gone]` branches and stale worktrees per repository after a
+review overlay, via two IPC methods (`scanCleanup`, `executeCleanup`); `git
+worktree remove` without `--force` (with `--force` only for
+missing-directory worktrees). **Filter Repositories Needing Attention**
 (`specs/007-failed-repos-filter/plan.md`) — a "Failed" state-filter chip
 narrowing the list to working trees whose most recent "Pull all" failed.
-**Update All Repositories**
-(`specs/006-update-all-repositories/plan.md`) — a header "Pull all" button
-that fast-forwards every eligible repository/worktree to its tracked
-upstream, autostashing dirty work and never auto-merging a diverged repo
-(left `failed`, light red). **Delete a Worktree Whose Directory Is Already
-Missing** (`specs/005-delete-missing-worktree/plan.md`), **Delete
-Repository Row** (`specs/004-delete-repository-row/plan.md`), **Startup
-Loading Indicator** (`specs/003-startup-loading-indicator/plan.md`),
-**Custom Per-Repository Action Launchers**
-(`specs/002-custom-action-launchers/plan.md`), and the foundational **Repo
-Dashboard** (`specs/001-repo-dashboard/plan.md`).
+**Update All Repositories** (`specs/006-update-all-repositories/plan.md`) —
+a header "Pull all" button that fast-forwards every eligible
+repository/worktree to its tracked upstream, autostashing dirty work and
+never auto-merging a diverged repo (left `failed`, light red). **Delete a
+Worktree Whose Directory Is Already Missing**
+(`specs/005-delete-missing-worktree/plan.md`), **Delete Repository Row**
+(`specs/004-delete-repository-row/plan.md`), **Startup Loading Indicator**
+(`specs/003-startup-loading-indicator/plan.md`), **Custom Per-Repository
+Action Launchers** (`specs/002-custom-action-launchers/plan.md`), and the
+foundational **Repo Dashboard** (`specs/001-repo-dashboard/plan.md`).
 <!-- SPECKIT END -->
 
 ## Toolchain
