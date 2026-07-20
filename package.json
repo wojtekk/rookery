@@ -1,7 +1,7 @@
 {
   "name": "rookery",
   "productName": "Rookery",
-  "version": "1.0.0-alpha.3",
+  "version": "1.0.0-beta.1",
   "private": true,
   "packageManager": "pnpm@10.15.1",
   "description": "Rookery — Local git organized. An Electron dashboard for managing locally-cloned git repositories.",
