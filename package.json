@@ -8,7 +8,7 @@
   "main": "dist/src/main/main.js",
   "scripts": {
     "build": "tsc -p tsconfig.json && tsc -p tsconfig.renderer.json && pnpm run copy-assets",
-    "copy-assets": "mkdir -p dist/renderer/src/renderer dist/assets && cp src/renderer/index.html src/renderer/styles.css dist/renderer/src/renderer/ && cp src/assets/icon.png dist/assets/",
+    "copy-assets": "node -e \"const fs=require('fs');fs.mkdirSync('dist/renderer/src/renderer',{recursive:true});fs.mkdirSync('dist/assets',{recursive:true});fs.copyFileSync('src/renderer/index.html','dist/renderer/src/renderer/index.html');fs.copyFileSync('src/renderer/styles.css','dist/renderer/src/renderer/styles.css');fs.copyFileSync('src/assets/icon.png','dist/assets/icon.png');\"",
     "start": "pnpm run build && electron .",
     "test": "pnpm run build && node --test dist/tests/*.test.js",
     "dist": "electron-builder --publish=never"
