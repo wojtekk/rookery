@@ -57,3 +57,8 @@ Loading Indicator** (`specs/003-startup-loading-indicator/plan.md`),
 (`specs/002-custom-action-launchers/plan.md`), and the foundational **Repo
 Dashboard** (`specs/001-repo-dashboard/plan.md`).
 <!-- SPECKIT END -->
+
+## Toolchain
+
+Requires **Node.js 24** (pinned in `.nvmrc`). Before running any `pnpm`/`node`
+command, switch with `nvm use` (reads `.nvmrc`).
