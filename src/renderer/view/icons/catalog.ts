@@ -111,6 +111,12 @@ const ENTRIES: readonly IconEntry[] = [
     pickable: false,
     svg: '<path d="M10 10m-7 0a7 7 0 1 0 14 0a7 7 0 1 0 -14 0"/><path d="M21 21l-6 -6"/>',
   },
+  {
+    id: 'layers-intersect',
+    label: 'Duplicate',
+    pickable: false,
+    svg: '<path d="M8 6a2 2 0 0 1 2 -2h8a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-8a2 2 0 0 1 -2 -2l0 -8"/><path d="M4 10a2 2 0 0 1 2 -2h8a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-8a2 2 0 0 1 -2 -2l0 -8"/>',
+  },
 ];
 
 const BY_ID = new Map(ENTRIES.map((e) => [e.id, e]));

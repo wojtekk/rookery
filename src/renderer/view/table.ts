@@ -11,6 +11,7 @@ import type { SortDimension, SortDirection } from './sort.js';
 export interface RowActionHandlers {
   onRun: (actionId: string, target: { path: string; remoteUrl: string | null }) => void;
   onDelete: (target: { path: string; isWorktree: boolean; familyPath?: string }) => void;
+  onFindDuplicate: (key: string) => void;
 }
 
 const STATE_ROW_CLASS: Record<RowState, string> = {
@@ -236,6 +237,30 @@ function buildMenuCell(
   return cell;
 }
 
+// Duplicate-clone indicator (017): rendered next to `.frag` whenever `entry.collisionFragment` is
+// set, i.e. this row shares its detection key with at least one other row (unchanged, FR-003). The
+// tooltip states only this row's own parent-folder fragment — never the sibling's location (research
+// R4/A1) — and a click narrows the existing search (016) to every row sharing the same identity.
+function buildDuplicateIcon(
+  fragment: string,
+  directoryName: string,
+  remote: Remote,
+  handlers: RowActionHandlers,
+  locked: boolean,
+): HTMLElement {
+  const btn = el('button', 'row-dup-ico');
+  btn.type = 'button';
+  btn.innerHTML = iconSvg('layers-intersect'); // bundled static SVG (no user input) — safe
+  const tip = `This repository is also cloned elsewhere (this copy is under …/${fragment})`;
+  btn.setAttribute('aria-label', tip);
+  btn.setAttribute('data-tip', tip);
+  btn.disabled = locked; // FR-006: blocked while a long operation runs — no colour change
+  btn.addEventListener('click', () =>
+    handlers.onFindDuplicate(remote && remote.slug ? remote.slug : directoryName),
+  );
+  return btn;
+}
+
 // Always-visible delete icon (004 FR-001) — its own fixed cell, separate from the
 // user-configurable .menu, so it renders on every row regardless of actions.length.
 function buildDeleteCell(
@@ -292,6 +317,7 @@ function buildRow(
     const frag = el('span', 'frag');
     frag.textContent = `…/${entry.collisionFragment}`;
     name.appendChild(frag);
+    name.appendChild(buildDuplicateIcon(entry.collisionFragment, entry.directoryName, remote, handlers, locked));
   }
   nameCell.appendChild(name);
 
