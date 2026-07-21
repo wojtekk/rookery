@@ -105,6 +105,12 @@ const ENTRIES: readonly IconEntry[] = [
     pickable: false,
     svg: '<path d="M5 18a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"/><path d="M5 6a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"/><path d="M15 6a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"/><path d="M7 8l0 8"/><path d="M9 18h6a2 2 0 0 0 2 -2v-5"/><path d="M14 14l3 -3l3 3"/>',
   },
+  {
+    id: 'search',
+    label: 'Search',
+    pickable: false,
+    svg: '<path d="M10 10m-7 0a7 7 0 1 0 14 0a7 7 0 1 0 -14 0"/><path d="M21 21l-6 -6"/>',
+  },
 ];
 
 const BY_ID = new Map(ENTRIES.map((e) => [e.id, e]));

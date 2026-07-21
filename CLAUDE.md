@@ -1,10 +1,91 @@
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at specs/015-vector-icon-set/plan.md
+at specs/016-repo-search-filter/plan.md
 <!-- SPECKIT END -->
 
-Active feature: **Explain Why a Repository Wasn't Updated by Pull All**
+Active feature: **Debounced Repository Search Filter**
+(`specs/016-repo-search-filter/plan.md`) — a header search affordance narrows
+the repository table live as the user types, matching a case-insensitive
+substring against each row's remote slug, directory name, origin URL, and
+current branch. Entered through an expandable magnifier icon (`#search` in
+the header bar, `view/search.ts`) that opens into a text input with a
+trailing × clear button (shown only when non-empty); Esc clears first, then
+collapses on a second press once already empty. Matching is debounced 150 ms
+via a plain `setTimeout` held in `renderer.ts` (no library, Principle V) —
+the × button and Esc bypass that debounce and commit `''` immediately, since
+reaching the already-inactive empty-query state should never feel laggy. The
+matching itself lives in the existing pure `filterRows` (`view/filter.ts`),
+extended with a trailing optional `searchQuery` parameter rather than a
+second filtering pass, so search composes (AND) with the existing state
+filter and the Worktrees toggle "for free" — the same choke point already
+governs which worktrees a family surfaces. Two small pure helpers,
+`searchMatchesRepo`/`searchMatchesWorktree`, encode the clarified worktree
+rule: a repo-level match surfaces every one of its worktrees, but a match
+found only on a worktree's own branch surfaces just that worktree under its
+still-visible parent. An empty or whitespace-only query reduces the new
+parameter to a no-op, so the pre-existing filter tests serve as a free
+regression guard. A distinct "No repositories match your search." message
+(`view/empty.ts`'s new `renderNoMatchState`) now covers the case where rows
+exist but the search/filter combination hides all of them — kept separate
+from the existing "no repositories discovered" onboarding copy so an active
+search never reads as a broken/empty app (Principle IV). The search control
+joins the feature-009 long-operation lockout: while Refresh/Pull all/Cleanup
+runs, the icon and input go non-interactive with only a `not-allowed`
+cursor — the input uses native `readOnly` rather than `disabled`
+specifically because a disabled `<input>` greys out by default in most
+browsers while `readOnly` doesn't, sidestepping the "no colour change"
+constraint without any CSS override. **Renderer-only**: no new IPC,
+main-process change, dependency, or persisted setting — `searchQuery` is a
+plain in-memory module-level string in `renderer.ts`, reset only by an
+explicit clear/Esc, and never touched by refresh/delete/pull-all/cleanup
+(FR-009 verified: nothing else in `render()`'s call graph writes to it).
+**Implementation complete through T016** — build and all 122 tests pass (110
+prior + 12 new `filterRows` search cases covering per-field matching, the
+worktree rule, AND-composition with the state and failed filters, and the
+empty-query regression guard). **T017 (the full `quickstart.md` walkthrough
+against `pnpm start`, scenarios A–M) is still owed** — an agent cannot drive
+real mouse/hover/typing interaction against the Electron window from this
+environment.
+
+Prior feature: **Upgrade to a Unified Vector Icon Set**
+(`specs/015-vector-icon-set/plan.md`) — replaced the app's hand-drawn, mixed
+fill/outline glyphs with a single uniform outline family (Tabler Icons,
+MIT): the icon catalog's `<svg>` wrapper flipped from
+`fill="currentColor"` to Tabler's `fill="none" stroke="currentColor"
+stroke-width="2"` recipe, and every text-character affordance (`×`, `↑`/`↓`,
+`⌂`) in the rows and the Settings/Cleanup overlays was swapped for a real
+glyph from the same set — including the row delete icon, now a trash glyph
+sized to match its row-mates. The bespoke IntelliJ mark was kept (Tabler has
+no IntelliJ brand) but redrawn to survive the new wrapper at the set's
+stroke weight. **Renderer-only, no new runtime dependency** (Tabler
+contributed source path data only, not an npm package) — Tabler's MIT
+license text was added to a new root `THIRD_PARTY_LICENSES` file.
+Implementation complete through all 14 tasks including the manual
+quickstart walkthrough; build and all 110 tests passed; merged to `main`.
+
+Prior feature: **Rebase Diverged Repositories on Pull All**
+(`specs/014-pull-all-rebase/plan.md`) — closes the gap where "Pull all" only
+fast-forwarded and reported any repository with local commits *and* an
+advanced upstream as `failed`/`diverged`, even though the user's own `git
+pull --autostash` (under `pull.rebase=true`) resolves the same repos
+trivially. `classifyAndMerge`'s diverged branch in `src/main/update.ts` now
+runs a non-interactive `git rebase @{u}`: a clean rebase reports `updated`
+(local commits replayed atop upstream, no merge commit); a conflicting
+rebase aborts, restores the repository byte-for-byte, and reports `failed`
+with a new `rebase-conflict` reason (its own tooltip sentence in `table.ts`'s
+`REASON_SENTENCE` map). This **supersedes the "diverged repo is always left
+failed, never auto-merged" framing** in feature 013's paragraph below for the
+clean-rebase case specifically — the constitution's Principle III was
+amended to v4.0.0 to permit exactly this: a non-interactive, conflict-free
+rebase, still never resolving a conflict, never fabricating a merge commit,
+never run outside a deliberate "Pull all" action. No new IPC, dependency,
+persisted setting, or UI state — reuses feature 013's `failed`/warn-icon
+plumbing entirely, adding only the new reason label. Implementation complete
+through all tasks; 105/105 tests passed (103 baseline + 2 new); merged to
+`main`.
+
+Prior feature: **Explain Why a Repository Wasn't Updated by Pull All**
 (`specs/013-pull-warn-reasons/plan.md`) — "Pull all" used to collapse every
 non-success outcome into one opaque `failed` (or a bare `skipped`), so a
 diverged branch, an unreachable remote, a failed autostash, a timeout, an

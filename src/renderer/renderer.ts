@@ -3,9 +3,10 @@
 import type { CleanupResult, Row, Settings, RepoDashboardApi, UpdateReason, UpdateResult, WorkingTreeEntry } from '../shared/types';
 import { sortRows } from './view/sort.js';
 import { deriveRowState, filterRows, type StateFilter } from './view/filter.js';
-import { renderRows, renderSkeletonRows, updateSortIndicator, wireSortHeaders } from './view/table.js';
+import { renderRows, renderSkeletonRows, renderNoMatchRows, updateSortIndicator, wireSortHeaders } from './view/table.js';
 import { renderSummary } from './view/summary.js';
 import { renderToolbar } from './view/toolbar.js';
+import { renderSearch } from './view/search.js';
 import { renderEmptyState } from './view/empty.js';
 import { renderSettingsModal, openSettingsModal } from './view/settings.js';
 import { openCleanupOverlay, renderCleanupOverlay } from './view/cleanup.js';
@@ -22,6 +23,7 @@ const api = window.repoDashboard;
 
 const els = {
   toolbar: document.getElementById('toolbar') as HTMLElement,
+  search: document.getElementById('search') as HTMLElement,
   fleetTitle: document.getElementById('fleetTitle') as HTMLElement,
   filters: document.getElementById('filters') as HTMLElement,
   sumbar: document.getElementById('sumbar') as HTMLElement,
@@ -62,6 +64,14 @@ function showNotice(message: string): void {
   setTimeout(() => toast.remove(), 6000);
 }
 let stateFilter: StateFilter = 'all';
+let searchQuery = ''; // debounced, committed value fed to filterRows (016 FR-001/006)
+let searchExpanded = false;
+const SEARCH_DEBOUNCE_MS = 150;
+let searchDebounceTimer: ReturnType<typeof setTimeout> | undefined;
+// Left the field empty and clicked/tabbed away — fold back to the icon after a grace period rather
+// than staying expanded-but-idle; cancelled if the user refocuses before it fires.
+const SEARCH_FOLD_MS = 3000;
+let searchFoldTimer: ReturnType<typeof setTimeout> | undefined;
 let refreshing = false;
 let updating = false; // re-entry guard + toolbar spinner for "Pull all" (FR-009)
 let cleaning = false; // re-entry guard + toolbar spinner for "Cleanup"; mutually exclusive with updating (FR-012)
@@ -242,6 +252,9 @@ async function doCleanup(): Promise<void> {
 function render(): void {
   // FR-001/015/016: drives filter-chip and row-action locking below (toolbar derives its own copy).
   const busy = refreshing || updating || cleaning;
+  const hasDirectories = settings.observedDirectories.length > 0;
+  const screen = decideStartupScreen(loadState, hasDirectories);
+  const isInitialLoading = screen === 'loader';
 
   renderToolbar(
     els.toolbar,
@@ -262,6 +275,40 @@ function render(): void {
     },
   );
 
+  renderSearch(
+    els.search,
+    { query: searchQuery, expanded: searchExpanded, busy: busy || isInitialLoading },
+    {
+      onQueryChange: (raw) => {
+        clearTimeout(searchDebounceTimer);
+        if (raw === '') {
+          // Clearing (× / Esc / backspace-to-empty) always commits instantly — no reason to wait
+          // out the debounce to reach the already-inactive, empty-query state (contracts §2).
+          searchQuery = '';
+          render();
+          return;
+        }
+        searchDebounceTimer = setTimeout(() => {
+          searchQuery = raw;
+          render();
+        }, SEARCH_DEBOUNCE_MS);
+      },
+      onToggleExpanded: (expanded) => {
+        searchExpanded = expanded;
+        render();
+      },
+      onBlur: () => {
+        clearTimeout(searchFoldTimer);
+        if (searchQuery !== '') return; // only auto-fold an empty field, not one mid-search
+        searchFoldTimer = setTimeout(() => {
+          searchExpanded = false;
+          render();
+        }, SEARCH_FOLD_MS);
+      },
+      onFocus: () => clearTimeout(searchFoldTimer),
+    },
+  );
+
   renderSummary(
     { title: els.fleetTitle, filters: els.filters, sumbar: els.sumbar },
     rows,
@@ -276,33 +323,46 @@ function render(): void {
 
   updateSortIndicator(els.thead, settings.sortDimension, settings.sortDirection);
 
-  const hasDirectories = settings.observedDirectories.length > 0;
-  const screen = decideStartupScreen(loadState, hasDirectories);
-  const isInitialLoading = screen === 'loader';
-
   const sorted = sortRows(rows, settings.sortDimension, settings.sortDirection);
-  const visible = filterRows(sorted, stateFilter, settings.showWorktrees, failedPaths);
+  const visible = filterRows(sorted, stateFilter, settings.showWorktrees, failedPaths, searchQuery);
+  const noRepos = rows.length === 0;
+  const noMatches = !noRepos && visible.length === 0; // rows exist, search/filter hides all of them (FR-005)
+
   if (isInitialLoading) {
     // No real data yet — mocked rows keep .list's flex space (and the footer's position) stable.
     renderSkeletonRows(els.list);
+  } else if (noMatches) {
+    // Keeps .list's border/outline intact (016) rather than swapping to the separate onboarding
+    // `.empty` block below, which is reserved for the genuinely-no-repositories case.
+    renderNoMatchRows(els.list);
   } else {
-    renderRows(els.list, visible, settings.defaultHost, settings.actions, {
-      onRun: (actionId, target) => {
-        const action = settings.actions.find((a) => a.id === actionId);
-        void api.runAction(actionId, target).then((res) => {
-          if (!res.ok) showNotice(`${action?.name ?? 'Action'} failed on ${target.path}: ${res.reason}`);
-        });
+    renderRows(
+      els.list,
+      visible,
+      settings.defaultHost,
+      settings.actions,
+      {
+        onRun: (actionId, target) => {
+          const action = settings.actions.find((a) => a.id === actionId);
+          void api.runAction(actionId, target).then((res) => {
+            if (!res.ok) showNotice(`${action?.name ?? 'Action'} failed on ${target.path}: ${res.reason}`);
+          });
+        },
+        // deleteRow owns its own dialogs/errors (main-process, native) — the renderer just refreshes
+        // afterward regardless of outcome; a cancelled/failed delete simply re-reports the row unchanged.
+        onDelete: (target) => {
+          void api.deleteRow(target).then(() => doRefresh());
+        },
       },
-      // deleteRow owns its own dialogs/errors (main-process, native) — the renderer just refreshes
-      // afterward regardless of outcome; a cancelled/failed delete simply re-reports the row unchanged.
-      onDelete: (target) => {
-        void api.deleteRow(target).then(() => doRefresh());
-      },
-    }, failedPaths, busy, warnings);
+      failedPaths,
+      busy,
+      warnings,
+      searchQuery.trim(),
+    );
   }
 
-  els.list.hidden = rows.length === 0 && !isInitialLoading;
-  const showEmpty = rows.length === 0 && !isInitialLoading;
+  const showEmpty = noRepos && !isInitialLoading;
+  els.list.hidden = showEmpty;
   els.empty.hidden = !showEmpty;
   if (showEmpty) {
     renderEmptyState(
