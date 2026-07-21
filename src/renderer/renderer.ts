@@ -1,6 +1,7 @@
 // Bootstrap: calls IPC, holds view state (sort, state filter, worktree toggle), re-renders on change.
 
 import type { CleanupResult, Row, Settings, RepoDashboardApi, UpdateReason, UpdateResult, WorkingTreeEntry } from '../shared/types';
+import { shouldRefreshAfterDelete } from '../shared/delete.js';
 import { sortRows } from './view/sort.js';
 import { deriveRowState, filterRows, type StateFilter } from './view/filter.js';
 import { renderRows, renderSkeletonRows, renderNoMatchRows, updateSortIndicator, wireSortHeaders } from './view/table.js';
@@ -347,10 +348,13 @@ function render(): void {
             if (!res.ok) showNotice(`${action?.name ?? 'Action'} failed on ${target.path}: ${res.reason}`);
           });
         },
-        // deleteRow owns its own dialogs/errors (main-process, native) — the renderer just refreshes
-        // afterward regardless of outcome; a cancelled/failed delete simply re-reports the row unchanged.
+        // deleteRow owns its own dialogs/errors (main-process, native); the renderer refreshes only
+        // when something may have changed on disk — a cancelled delete is a no-op, so it's the one
+        // outcome that skips the refresh (021).
         onDelete: (target) => {
-          void api.deleteRow(target).then(() => doRefresh());
+          void api.deleteRow(target).then((outcome) => {
+            if (shouldRefreshAfterDelete(outcome)) doRefresh();
+          });
         },
         onFindDuplicate: (key) => {
           searchExpanded = true;
