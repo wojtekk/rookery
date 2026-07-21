@@ -925,6 +925,13 @@ body {
   padding: 20px;
 }
 
+/* loader status label — subdued, blends with the dots rather than reading as a banner (FR-005) */
+.loader-label {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
 /* flat, indeterminate loader dots — used inside .table-loader (FR-005) */
 .loader-dot {
   width: 16px;
@@ -939,6 +946,7 @@ body {
   inset: 0;
   z-index: 10;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 16px;
@@ -946,6 +954,11 @@ body {
 }
 .table-loader[hidden] {
   display: none;
+}
+
+.loader-dots {
+  display: flex;
+  gap: 16px;
 }
 
 /* refresh / pull-all / cleanup button busy state (FR-012/FR-014, FR-009, FR-011) */

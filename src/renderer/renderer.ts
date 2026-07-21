@@ -85,12 +85,12 @@ let revealHideTimer: ReturnType<typeof setTimeout> | undefined;
 
 /** Row + sort-header dim and table loader paint after the show-delay (FR-004/005/014); every other
  *  control's block is immediate via render(). */
-function beginBusyLock(): void {
+function beginBusyLock(label: string): void {
   busyShowTimer = setTimeout(() => {
     busyLoaderShownAt = Date.now();
     els.list.classList.add('busy');
     els.thead.classList.add('busy');
-    setLoaderVisible(els.tableLoader, true);
+    setLoaderVisible(els.tableLoader, true, label);
   }, LOADER_SHOW_DELAY_MS);
 }
 
@@ -168,7 +168,7 @@ function pruneFixedFailedPaths(): void {
 async function doRefresh(opts: { pruneFixedFailed?: boolean } = {}): Promise<void> {
   if (refreshing || updating || cleaning) return; // FR-002/SC-005: at most one long operation at a time
   refreshing = true;
-  beginBusyLock();
+  beginBusyLock('Refreshing…');
   render();
   try {
     rows = await api.refresh();
@@ -186,7 +186,7 @@ async function doUpdateAll(): Promise<void> {
   updating = true;
   failedPaths = new Set();
   warnings = new Map();
-  beginBusyLock();
+  beginBusyLock('Pulling…');
   render();
 
   try {
@@ -212,7 +212,7 @@ async function doUpdateAll(): Promise<void> {
 async function doCleanup(): Promise<void> {
   if (cleaning || updating) return; // FR-012: mutually exclusive with Pull all
   cleaning = true;
-  beginBusyLock();
+  beginBusyLock('Cleaning up…');
   render();
 
   try {
@@ -454,7 +454,7 @@ void (async () => {
     render(); // first paint: add-directory screen if no directories configured, else nothing yet (loader pending)
 
     if (settings.observedDirectories.length > 0) {
-      beginBusyLock();
+      beginBusyLock('Loading…');
       locked = true;
     }
 
