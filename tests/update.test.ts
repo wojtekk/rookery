@@ -151,27 +151,104 @@ test('updateRepo: local ahead only → already-current (HEAD unchanged; push is 
   });
 });
 
-test('updateRepo: diverged (both advanced) + dirty → failed (HEAD unchanged, no merge commit, stash restored)', async () => {
+test('updateRepo: diverged (both advanced, non-conflicting) + dirty → updated (rebased, no merge commit) (FR-002/FR-009)', async () => {
   await withTmp(async (root) => {
     const { work, bare } = initCleanClone(root);
-    advanceRemote(root, bare); // remote advances independently
+    const remoteSha = advanceRemote(root, bare); // remote advances independently, touching a different file
 
     fs.writeFileSync(path.join(work, 'local-divergent.txt'), 'diverged\n');
     git(work, ['add', 'local-divergent.txt']);
     git(work, ['commit', '-q', '-m', 'local divergent commit']); // local also advances, independently
-    const beforeHead = headSha(work);
 
     fs.writeFileSync(path.join(work, 'tracked.txt'), 'dirty edit\n');
     fs.writeFileSync(path.join(work, 'untracked.txt'), 'scratch\n');
 
     const { result, reason } = await updateRepo(work);
 
-    assert.equal(result, 'failed'); // Principle III: never auto-merge a divergence
-    assert.equal(reason?.category, 'diverged'); // 013 FR-001/002
-    assert.equal(headSha(work), beforeHead); // no merge commit; HEAD untouched
+    assert.equal(result, 'updated'); // v4.0.0: a cleanly-rebasable divergence now matches `git pull --autostash`
+    assert.equal(reason, undefined);
+    assert.equal(
+      execFileSync('git', ['-C', work, 'rev-parse', 'HEAD^']).toString().trim(),
+      remoteSha,
+    ); // local commit replayed directly atop the remote commit (INV-1)
+    assert.equal(execFileSync('git', ['-C', work, 'rev-list', '--merges', 'HEAD']).toString().trim(), ''); // no merge commit
     assert.equal(fs.readFileSync(path.join(work, 'tracked.txt'), 'utf8'), 'dirty edit\n'); // stash restored
     assert.equal(fs.readFileSync(path.join(work, 'untracked.txt'), 'utf8'), 'scratch\n');
     assert.equal(stashList(work), '');
+  });
+});
+
+test('updateRepo: diverged (same-line conflict) + dirty → failed/rebase-conflict, exact restore (FR-004/005/006)', async () => {
+  await withTmp(async (root) => {
+    const { work, bare } = initCleanClone(root);
+    // A second tracked file, pushed before divergence, so it exists to be dirtied later without
+    // itself being part of the conflict.
+    fs.writeFileSync(path.join(work, 'other.txt'), 'other original\n');
+    git(work, ['add', 'other.txt']);
+    git(work, ['commit', '-q', '-m', 'add other.txt']);
+    git(work, ['push', '-q']);
+
+    advanceRemoteBranch(root, bare, defaultBranch(bare), 'tracked.txt'); // remote edits tracked.txt's only line
+
+    fs.writeFileSync(path.join(work, 'tracked.txt'), 'local conflicting edit\n');
+    git(work, ['add', 'tracked.txt']);
+    git(work, ['commit', '-q', '-m', 'local conflicting commit']); // local edits the SAME line, independently
+    const beforeHead = headSha(work);
+    const beforeLog = execFileSync('git', ['-C', work, 'log', '--format=%H']).toString().trim();
+
+    fs.writeFileSync(path.join(work, 'other.txt'), 'dirty edit\n');
+    fs.writeFileSync(path.join(work, 'untracked.txt'), 'scratch\n');
+
+    const { result, reason } = await updateRepo(work);
+
+    assert.equal(result, 'failed');
+    assert.equal(reason?.category, 'rebase-conflict');
+    assert.ok(reason?.detail && reason.detail.length > 0);
+    assert.equal(headSha(work), beforeHead); // INV-2: HEAD restored exactly
+    assert.equal(execFileSync('git', ['-C', work, 'log', '--format=%H']).toString().trim(), beforeLog); // local commits unchanged
+    assert.equal(fs.readFileSync(path.join(work, 'tracked.txt'), 'utf8'), 'local conflicting edit\n'); // restored, no conflict markers
+    assert.equal(fs.readFileSync(path.join(work, 'other.txt'), 'utf8'), 'dirty edit\n');
+    assert.equal(fs.readFileSync(path.join(work, 'untracked.txt'), 'utf8'), 'scratch\n');
+    assert.ok(!fs.existsSync(path.join(work, '.git', 'rebase-merge')));
+    assert.ok(!fs.existsSync(path.join(work, '.git', 'rebase-apply')));
+    assert.equal(stashList(work), '');
+  });
+});
+
+test('updateRepo: clean rebase but stash-pop collides with rebased content → failed/stash-failed, work preserved (FR-008)', async () => {
+  await withTmp(async (root) => {
+    const { work, bare } = initCleanClone(root);
+
+    // ponytail: multi-line content makes the eventual pop collision a genuine same-line 3-way
+    // conflict rather than relying on git's fuzzy single-line patch matching.
+    fs.writeFileSync(path.join(work, 'tracked.txt'), 'line1\nline2\nline3\n');
+    git(work, ['add', 'tracked.txt']);
+    git(work, ['commit', '-q', '-m', 'expand tracked.txt']);
+    git(work, ['push', '-q']);
+
+    const scratch = fs.mkdtempSync(path.join(root, 'advance-'));
+    execFileSync('git', ['clone', '-q', bare, scratch]);
+    git(scratch, ['config', 'user.email', 'test@example.com']);
+    git(scratch, ['config', 'user.name', 'Test']);
+    fs.writeFileSync(path.join(scratch, 'tracked.txt'), 'line1\nline2-remote\nline3\n');
+    git(scratch, ['add', 'tracked.txt']);
+    git(scratch, ['commit', '-q', '-m', 'remote edits line2']);
+    git(scratch, ['push', '-q']);
+
+    // Local diverges on a DIFFERENT file, so the rebase itself applies cleanly.
+    fs.writeFileSync(path.join(work, 'local-divergent.txt'), 'diverged\n');
+    git(work, ['add', 'local-divergent.txt']);
+    git(work, ['commit', '-q', '-m', 'local divergent commit']);
+
+    // Uncommitted edit to the SAME line remote changed, based on the pre-rebase content — exactly
+    // what the autostash captures, and what collides once popped onto the post-rebase tree.
+    fs.writeFileSync(path.join(work, 'tracked.txt'), 'line1\nline2-dirty\nline3\n');
+
+    const { result, reason } = await updateRepo(work);
+
+    assert.equal(result, 'failed');
+    assert.equal(reason?.category, 'stash-failed');
+    assert.ok(stashList(work).length > 0); // INV-3: never lose work — recoverable from the stash
   });
 });
 

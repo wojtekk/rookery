@@ -1,8 +1,22 @@
 <!--
 Sync Impact Report
 ==================
-Version change: 2.0.0 → 3.0.0
-Rationale: Re-expand Principle IV's UI-lockout mandate to reconcile with Feature
+Version change: 3.0.0 → 4.0.0
+Rationale: Amend Principle III to reconcile with Feature 014
+(specs/014-pull-all-rebase/spec.md) — "Pull all" now brings a *diverged* repository up to
+date by a non-interactive rebase of local commits onto the upstream, matching the user's
+proven `git pull --autostash` workflow (their global `pull.rebase=true`). This is a
+backward-incompatible redefinition (MAJOR): Principle III previously *guaranteed* that a
+diverged repository is left untouched and marked `failed`, never rewritten. That guarantee
+is removed. The principle's core is preserved intact: the app still MUST NOT resolve
+conflicts, MUST NOT perform interactive merge/rebase resolution, and MUST NOT create a
+merge commit on the user's behalf. The added latitude is narrow and reversible — the rebase
+is non-interactive, aborts on the first conflict, restores the repository to its exact prior
+state (no rebase left in progress, uncommitted work preserved), and hands off to a merge
+tool. `--autostash` remains mandatory; the fail-loud/hand-off rule for push is unchanged.
+See specs/014-pull-all-rebase/{spec.md,plan.md,research.md} (Decision 6).
+
+Prior change (2.0.0 → 3.0.0): Re-expand Principle IV's UI-lockout mandate to reconcile with Feature
 009's further-revised design (specs/009-block-ui-during-operations/spec.md,
 Revision 2026-07-19e). Live feedback after implementing the 2.0.0-narrowed design
 made the actual intent explicit: while a long operation (Refresh, Pull all,
@@ -90,6 +104,18 @@ Added sections:
   - Governance
 
 Removed sections: none (template placeholders replaced).
+
+Amendments (4.0.0):
+  - Principle III: the guarantee that a diverged repository is left untouched and marked
+    `failed` (never rewritten) is REMOVED. "Pull all" MAY now bring a diverged repository
+    up to date by a non-interactive rebase of its local commits onto the upstream, but
+    ONLY when that rebase completes without conflict. On the first conflict it MUST abort
+    the rebase, restore the repository to its exact prior state (no rebase in progress,
+    uncommitted work preserved), mark it `failed` (light red), and hand off to a dedicated
+    merge tool. The unchanged core: still MUST NOT resolve conflicts, MUST NOT perform
+    interactive merge/rebase resolution, and MUST NOT create a merge commit on the user's
+    behalf (no auto-merge). `--autostash` remains mandatory. Backward-incompatible
+    (removes a prior guarantee) → MAJOR. See specs/014-pull-all-rebase/spec.md.
 
 Amendments (3.0.0):
   - Principle IV: the 2.0.0 narrowing is substantially reversed. While a long
@@ -184,12 +210,14 @@ Amendments (1.1.0):
   - Technical Constraints: refresh is on explicit demand; "refresh interval" setting
     replaced with "sort order" as the persisted example.
 
-Templates reviewed (re-verified for 3.0.0):
+Templates reviewed (re-verified for 4.0.0):
   ✅ .specify/templates/plan-template.md — "Constitution Check" gate is generic
      (reads from this file); no hardcoded principle names to update.
   ✅ .specify/templates/spec-template.md — no constitution-specific references.
   ✅ .specify/templates/tasks-template.md — no constitution-specific references.
   ✅ .specify/templates/checklist-template.md — no constitution-specific references.
+  ✅ specs/014-pull-all-rebase/{plan.md,research.md,contracts/update-engine.md} — already
+     written against this amendment (Principle III rebase latitude); no rework needed.
 
 Follow-up TODOs:
   ⚠ specs/009-block-ui-during-operations/{plan.md,research.md,data-model.md,
@@ -239,16 +267,26 @@ worktree, a deleted repository with unpushed work has no git-native recovery pat
 ### III. Never Resolve Conflicts — Fail Loud, Hand Off
 
 The application MUST NOT attempt to resolve merge conflicts or perform interactive
-merge/rebase resolution. Pull-all MUST use `--autostash`; when a pull cannot
-complete cleanly, the operation MUST stop for that repository, leave the repo in a
-state the user can inspect, mark it as failed (light red), and direct the user to a
-dedicated merge tool. The same fail-loud rule applies to push: a push rejected as
-non-fast-forward (remote has diverged) MUST stop and surface the failure, never
-force-push or attempt to auto-merge/rebase on the user's behalf.
+merge/rebase resolution, and MUST NOT create a merge commit on the user's behalf
+(no auto-merge). Pull-all MUST use `--autostash`. Pull-all MAY bring a diverged
+repository up to date by a **non-interactive rebase** of its local commits onto the
+upstream, but ONLY when that rebase completes without conflict; on the first
+conflict it MUST abort the rebase and restore the repository to its exact prior
+state (no rebase left in progress, uncommitted work preserved). When a pull cannot
+complete cleanly by fast-forward or by such a conflict-free rebase, the operation
+MUST stop for that repository, leave the repo in a state the user can inspect, mark
+it as failed (light red), and direct the user to a dedicated merge tool. The same
+fail-loud rule applies to push: a push rejected as non-fast-forward (remote has
+diverged) MUST stop and surface the failure, never force-push or attempt to
+auto-merge/rebase on the user's behalf.
 
 Rationale: Conflict resolution is a high-stakes, context-dependent task. A
-management dashboard that guesses will corrupt work. Stopping and signalling is
-both safer and simpler.
+management dashboard that guesses will corrupt work. A non-interactive rebase that
+aborts on the first conflict never guesses — it either replays local commits
+cleanly (exactly what the user does by hand with `git pull --autostash`) or restores
+the prior state untouched and hands off. Rewriting local history this narrowly is
+safe and reversible; fabricating a merge commit is not, and remains forbidden.
+Stopping and signalling on any conflict is both safer and simpler.
 
 ### IV. Always-Observable State
 
@@ -354,4 +392,4 @@ credential handling, or network activity MUST be reviewed against Principles I�
 before merge. Deviations MUST be justified in the plan's Complexity Tracking or
 rejected.
 
-**Version**: 3.0.0 | **Ratified**: 2026-07-16 | **Last Amended**: 2026-07-19
+**Version**: 4.0.0 | **Ratified**: 2026-07-16 | **Last Amended**: 2026-07-21

@@ -97,6 +97,7 @@ export type UpdateReasonCategory =
   | 'stash-failed'
   | 'timed-out'
   | 'update-failed'
+  | 'rebase-conflict'
   | 'unavailable'
   | 'detached';
 
