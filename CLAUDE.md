@@ -1,7 +1,7 @@
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at specs/014-pull-all-rebase/plan.md
+at specs/015-vector-icon-set/plan.md
 <!-- SPECKIT END -->
 
 Active feature: **Explain Why a Repository Wasn't Updated by Pull All**

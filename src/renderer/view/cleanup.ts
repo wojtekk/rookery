@@ -3,6 +3,7 @@
 // Mirrors settings.ts's module-level isOpen + open/render pair and the shared .scrim/.modal CSS.
 
 import type { CleanupCandidate } from '../../shared/types';
+import { iconSvg } from './icons/catalog.js';
 
 export interface CleanupOverlayHandlers {
   onConfirm: (selected: CleanupCandidate[]) => void;
@@ -73,7 +74,7 @@ export function renderCleanupOverlay(container: HTMLElement): void {
   const h2 = el('h2');
   h2.textContent = 'Review cleanup';
   const closeBtn = el('span', 'modal-close');
-  closeBtn.textContent = '×';
+  closeBtn.innerHTML = iconSvg('x'); // bundled static SVG (no user input) — safe
   closeBtn.title = 'Close';
   closeBtn.addEventListener('click', () => {
     close();
@@ -182,7 +183,7 @@ export function renderCleanupOverlay(container: HTMLElement): void {
 
       if (candidate.worktreePath) {
         const glyph = el('span', 'cleanup-worktree-indicator');
-        glyph.textContent = '⌂';
+        glyph.innerHTML = iconSvg('git-branch'); // bundled static SVG (no user input) — safe
         glyph.title = 'Also removes a worktree';
         row.appendChild(glyph);
       }

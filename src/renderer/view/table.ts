@@ -225,7 +225,7 @@ function buildDeleteCell(
 ): HTMLElement {
   const btn = el('button', 'row-delete-ico');
   btn.type = 'button';
-  btn.textContent = '×';
+  btn.innerHTML = iconSvg('trash'); // bundled static SVG (no user input) — safe
   btn.setAttribute('aria-label', 'Delete');
   btn.setAttribute('data-tip', 'Delete');
   btn.disabled = locked; // FR-016: blocked while a long operation runs — no colour change
