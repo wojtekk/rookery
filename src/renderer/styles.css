@@ -662,6 +662,24 @@ body {
   cursor: not-allowed;
 }
 
+/* Feature 015: row/overlay control glyphs now render inline SVGs. Render as block to drop the
+   inline-baseline descender gap so each occupies the same footprint the old text glyph did
+   (no reflow, FR-007). The grid-centered hosts (.row-*, .modal-close, .dir .rm) center a block
+   fine; .mini (shared with text buttons — icon buttons only get an svg) and the inline worktree
+   indicator need this too. Colour is inherited from the host (currentColor), unchanged. */
+.row-delete-ico svg,
+.row-action-ico svg,
+.modal-close svg,
+.dir .rm svg,
+.mini svg,
+.cleanup-worktree-indicator svg {
+  display: block;
+}
+.cleanup-worktree-indicator {
+  display: inline-flex;
+  align-items: center;
+}
+
 /* transient launch-failure notices (FR-007, SC-004) */
 #notices {
   position: fixed;

@@ -77,7 +77,7 @@ function renderActionsSection(modal: HTMLElement, actions: Action[], handlers: S
 
     const up = el('button', 'mini');
     up.type = 'button';
-    up.textContent = '↑';
+    up.innerHTML = iconSvg('chevron-up'); // bundled static SVG (no user input) — safe
     up.title = 'Move up';
     up.setAttribute('aria-label', `Move ${action.name} up`);
     up.disabled = index === 0;
@@ -85,7 +85,7 @@ function renderActionsSection(modal: HTMLElement, actions: Action[], handlers: S
 
     const down = el('button', 'mini');
     down.type = 'button';
-    down.textContent = '↓';
+    down.innerHTML = iconSvg('chevron-down'); // bundled static SVG (no user input) — safe
     down.title = 'Move down';
     down.setAttribute('aria-label', `Move ${action.name} down`);
     down.disabled = index === actions.length - 1;
@@ -232,7 +232,7 @@ export function renderSettingsModal(
   const h2 = el('h2');
   h2.textContent = 'Settings';
   const close = el('span', 'modal-close');
-  close.textContent = '×';
+  close.innerHTML = iconSvg('x'); // bundled static SVG (no user input) — safe
   close.title = 'Close';
   close.addEventListener('click', () => {
     isOpen = false;
@@ -263,7 +263,7 @@ export function renderSettingsModal(
     path.textContent = dir;
     const rm = el('span', 'rm');
     rm.title = 'Stop observing';
-    rm.textContent = '×';
+    rm.innerHTML = iconSvg('trash'); // bundled static SVG (no user input) — safe
     rm.addEventListener('click', () => void handlers.onRemove(dir).then(handlers.onModified));
     row.appendChild(path);
     row.appendChild(rm);
