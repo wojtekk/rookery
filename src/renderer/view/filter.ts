@@ -1,6 +1,6 @@
 // Pure RowState derivation (shared with summary.ts/table.ts) + state/worktree filtering. See data-model.md, FR-024/029.
 
-import type { Row, RowState, WorkingTreeEntry } from '../../shared/types';
+import type { Remote, Row, RowState, WorkingTreeEntry } from '../../shared/types';
 
 // 'failed' is a sibling of 'all', not a RowState member: it reflects the outcome of the last
 // "Pull all" attempt (an event), not git-derived state, so it never participates in
@@ -25,30 +25,56 @@ function matches(entry: WorkingTreeEntry, stateFilter: StateFilter, failedPaths:
   return deriveRowState(entry) === stateFilter;
 }
 
+/** True if `q` (already normalized, non-empty) is contained in the repo's slug, name, origin, or
+ *  branch (016 data-model.md R3). A detached HEAD or a null remote simply contributes no text. */
+function searchMatchesRepo(entry: WorkingTreeEntry, remote: Remote, q: string): boolean {
+  if (entry.directoryName.toLowerCase().includes(q)) return true;
+  if (remote && ((remote.slug && remote.slug.toLowerCase().includes(q)) || remote.rawUrl.toLowerCase().includes(q))) {
+    return true;
+  }
+  return entry.availability === 'ok' && !entry.head.detached && entry.head.branch.toLowerCase().includes(q);
+}
+
+/** True if `q` is contained in the worktree's own name or branch — slug/origin are inherited from
+ *  the parent and already covered by `searchMatchesRepo` there (016 data-model.md R3/R6). */
+function searchMatchesWorktree(entry: WorkingTreeEntry, q: string): boolean {
+  if (entry.directoryName.toLowerCase().includes(q)) return true;
+  return entry.availability === 'ok' && !entry.head.detached && entry.head.branch.toLowerCase().includes(q);
+}
+
 /**
- * Applies the state filter (FR-029) and worktree visibility (FR-024). A primary is shown when it
- * matches the filter itself, or a worktree beneath it does (surfacing the family); a worktree is
- * shown only when worktrees are on, its family is shown, and it matches the filter itself.
+ * Applies the state filter (FR-029), worktree visibility (FR-024), and search (016 data-model.md).
+ * A primary is shown when it matches the filter+search itself, or a worktree beneath it does
+ * (surfacing the family); a worktree is shown only when worktrees are on, its family is shown, and
+ * it matches the state filter and (the parent's search hit OR its own name/branch matches).
+ * Empty `searchQuery` reduces `repoHit` to always-true, reproducing pre-016 behavior exactly.
  */
 export function filterRows(
   rows: Row[],
   stateFilter: StateFilter,
   showWorktrees: boolean,
   failedPaths: Set<string> = new Set(),
+  searchQuery = '',
 ): Row[] {
+  const q = searchQuery.trim().toLowerCase();
   const result: Row[] = [];
 
   for (const row of rows) {
     if (row.kind === 'orphan-worktree') {
-      if (matches(row, stateFilter, failedPaths)) result.push(row);
+      if (matches(row, stateFilter, failedPaths) && (q === '' || searchMatchesRepo(row, row.remote, q))) {
+        result.push(row);
+      }
       continue;
     }
 
-    const ownMatches = matches(row, stateFilter, failedPaths);
-    const childMatches = showWorktrees && row.worktrees.some((w) => matches(w, stateFilter, failedPaths));
+    const repoHit = q === '' || searchMatchesRepo(row, row.remote, q);
+    const ownMatches = matches(row, stateFilter, failedPaths) && repoHit;
+    const worktreeHits = (w: WorkingTreeEntry): boolean =>
+      matches(w, stateFilter, failedPaths) && (repoHit || searchMatchesWorktree(w, q));
+    const childMatches = showWorktrees && row.worktrees.some(worktreeHits);
     if (!ownMatches && !childMatches) continue;
 
-    const worktrees = showWorktrees ? row.worktrees.filter((w) => matches(w, stateFilter, failedPaths)) : [];
+    const worktrees = showWorktrees ? row.worktrees.filter(worktreeHits) : [];
     result.push({ ...row, worktrees });
   }
 

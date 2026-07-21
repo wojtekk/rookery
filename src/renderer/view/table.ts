@@ -64,6 +64,23 @@ function appendText(parent: HTMLElement, className: string, text: string): HTMLE
   return node;
 }
 
+// Wraps the first case-insensitive match of `query` in `text` with a <mark class="search-hit">
+// (016). Built from text nodes, never innerHTML — text is git-controlled (dir/branch/slug names),
+// so this can't be trusted as markup.
+function renderHighlighted(parent: HTMLElement, text: string, query: string): void {
+  const idx = query ? text.toLowerCase().indexOf(query.toLowerCase()) : -1;
+  if (idx === -1) {
+    parent.textContent = text;
+    return;
+  }
+  parent.textContent = '';
+  parent.appendChild(document.createTextNode(text.slice(0, idx)));
+  const mark = el('mark', 'search-hit');
+  mark.textContent = text.slice(idx, idx + query.length);
+  parent.appendChild(mark);
+  parent.appendChild(document.createTextNode(text.slice(idx + query.length)));
+}
+
 function relativeTime(iso: string | null): string {
   if (!iso) return '—';
   const diffMs = Date.now() - new Date(iso).getTime();
@@ -81,10 +98,10 @@ function relativeTime(iso: string | null): string {
 // Branch line (first line of the branch-tracking cell) as a flex row: [truncatable text] +
 // [warn icon: flex-shrink:0] — same pattern as .name's .dirname/.frag, so a long branch name
 // truncates before the icon ever clips (styles.css).
-function buildBranchLine(text: string, reason: UpdateReason | undefined): HTMLElement {
+function buildBranchLine(text: string, reason: UpdateReason | undefined, searchQuery: string): HTMLElement {
   const line = el('div', 'branch');
   const label = el('span', 'branch-text');
-  label.textContent = text;
+  renderHighlighted(label, text, searchQuery);
   line.appendChild(label);
   if (reason) {
     const warnIco = el('span', 'row-warn-ico');
@@ -97,18 +114,23 @@ function buildBranchLine(text: string, reason: UpdateReason | undefined): HTMLEl
   return line;
 }
 
-function fillBranchCell(cell: HTMLElement, entry: WorkingTreeEntry, reason: UpdateReason | undefined): void {
+function fillBranchCell(
+  cell: HTMLElement,
+  entry: WorkingTreeEntry,
+  reason: UpdateReason | undefined,
+  searchQuery: string,
+): void {
   if (entry.availability !== 'ok') {
-    cell.appendChild(buildBranchLine('—', reason));
+    cell.appendChild(buildBranchLine('—', reason, ''));
     appendText(cell, 'track', 'unavailable');
     return;
   }
   const { head } = entry;
   if (head.detached) {
-    cell.appendChild(buildBranchLine('detached', reason));
+    cell.appendChild(buildBranchLine('detached', reason, ''));
     return;
   }
-  cell.appendChild(buildBranchLine(head.branch, reason));
+  cell.appendChild(buildBranchLine(head.branch, reason, searchQuery));
   const track = el('div', 'track');
   if (head.upstream.tracking === 'local-only') {
     const tag = el('span', 'tag local');
@@ -244,6 +266,7 @@ function buildRow(
   failed: boolean,
   locked: boolean,
   reason: UpdateReason | undefined,
+  searchQuery: string,
 ): HTMLElement {
   const state = deriveRowState(entry);
   const row = el('div', `row${isWorktree ? ' wt' : ''} ${STATE_ROW_CLASS[state]}${failed ? ' fail' : ''}`);
@@ -262,7 +285,7 @@ function buildRow(
   const name = el('div', 'name');
   name.setAttribute('data-tip', entry.fullPath);
   const dirName = el('span', 'dirname');
-  dirName.textContent = entry.directoryName;
+  renderHighlighted(dirName, entry.directoryName, searchQuery);
   name.appendChild(dirName);
   if (entry.collisionFragment) {
     name.appendChild(document.createTextNode(' '));
@@ -273,7 +296,7 @@ function buildRow(
   nameCell.appendChild(name);
 
   const slug = el('div', 'slug');
-  slug.textContent = remote && remote.slug ? remote.slug : entry.directoryName;
+  renderHighlighted(slug, remote && remote.slug ? remote.slug : entry.directoryName, searchQuery);
   if (remote && remote.host && remote.host !== defaultHost) {
     const host = el('span', 'host ext');
     host.textContent = remote.host;
@@ -283,7 +306,7 @@ function buildRow(
   row.appendChild(nameCell);
 
   const branchCell = el('div', 'branch-cell');
-  fillBranchCell(branchCell, entry, reason);
+  fillBranchCell(branchCell, entry, reason, searchQuery);
   row.appendChild(branchCell);
 
   row.appendChild(buildLocalCell(entry));
@@ -306,6 +329,7 @@ export function renderRows(
   failedPaths: Set<string>,
   locked = false,
   warnings: Map<string, UpdateReason> = new Map(),
+  searchQuery = '',
 ): void {
   listEl.innerHTML = '';
   for (const row of rows) {
@@ -321,6 +345,7 @@ export function renderRows(
         failedPaths.has(row.fullPath),
         locked,
         warnings.get(row.fullPath),
+        searchQuery,
       ),
     );
     if (row.kind === 'repository') {
@@ -341,6 +366,7 @@ export function renderRows(
             failedPaths.has(wt.fullPath),
             locked,
             warnings.get(wt.fullPath),
+            searchQuery,
           ),
         );
       }
@@ -392,6 +418,21 @@ function buildSkeletonRow(): HTMLElement {
   row.appendChild(el('div'));
 
   return row;
+}
+
+/** Repositories exist, but the search/filter combination hides all of them (016 FR-005): a centred
+ *  message rendered inside the list itself, so the table's border/outline stays intact instead of
+ *  swapping to the separate onboarding `.empty` block used when there are no repositories at all. */
+export function renderNoMatchRows(listEl: HTMLElement): void {
+  listEl.innerHTML = '';
+  const wrap = el('div', 'no-match');
+  const heading = el('div', 'empty-heading');
+  heading.textContent = 'No matches';
+  wrap.appendChild(heading);
+  const body = el('div', 'empty-body');
+  body.textContent = 'No repositories match your search.';
+  wrap.appendChild(body);
+  listEl.appendChild(wrap);
 }
 
 /** Fills the list with mocked placeholder rows while the initial scan is in flight (no real data yet). */

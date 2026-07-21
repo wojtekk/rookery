@@ -145,6 +145,93 @@ body {
   background: var(--void);
 }
 
+/* header search (016 R7): collapsed icon vs. expanded icon+input, same chip look as .ctrl */
+#search {
+  display: flex;
+  align-items: center;
+}
+.search-ico {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 9px;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0;
+}
+.search-ico:hover {
+  border-color: var(--line-2);
+  color: var(--fg);
+}
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 9px;
+  padding: 0 10px;
+  height: 34px;
+}
+.search-box-ico {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+.search-input {
+  border: none;
+  background: transparent;
+  outline: none;
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 12.5px;
+  width: 180px;
+}
+.search-input::placeholder {
+  color: var(--muted);
+}
+.search-clear-ico {
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+.search-clear-ico:hover {
+  color: var(--fg);
+  background: var(--surface-2);
+}
+.search-clear-ico[hidden] {
+  display: none;
+}
+/* busy (long-op lockout, 016 FR-011) — cursor-only, no colour/opacity change (Principle IV);
+   the input uses readOnly rather than disabled so it needs no colour override to begin with. */
+.search-ico:disabled,
+.search-clear-ico:disabled {
+  cursor: not-allowed;
+}
+.search-box.busy,
+.search-box.busy .search-input {
+  cursor: not-allowed;
+}
+
+/* matched-substring highlight (016) — overrides the <mark> UA default for the dark theme */
+.search-hit {
+  background: var(--sync-edge);
+  color: var(--fg);
+  border-radius: 3px;
+}
+
 /* fleet strip */
 .fleet {
   margin: 6px 2px 26px;
@@ -790,6 +877,19 @@ body {
 .empty-body {
   font-size: 12.5px;
   margin-bottom: 16px;
+}
+
+/* no-matches message rendered inside .list (016) — keeps the table's border/outline intact,
+   unlike the onboarding .empty block above which replaces the table region entirely. */
+.no-match {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--muted);
+  padding: 20px;
 }
 
 /* flat, indeterminate loader dots — used inside .table-loader (FR-005) */

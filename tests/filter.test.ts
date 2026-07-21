@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { deriveRowState, filterRows } from '../src/renderer/view/filter';
-import type { Row, WorkingTreeEntry } from '../src/shared/types';
+import type { Remote, Row, WorkingTreeEntry } from '../src/shared/types';
 
 function entry(overrides: Partial<WorkingTreeEntry> = {}): WorkingTreeEntry {
   return {
@@ -16,8 +16,13 @@ function entry(overrides: Partial<WorkingTreeEntry> = {}): WorkingTreeEntry {
   } as WorkingTreeEntry;
 }
 
-function repo(directoryName: string, primary: Partial<WorkingTreeEntry> = {}, worktrees: WorkingTreeEntry[] = []): Row {
-  return { kind: 'repository', ...entry({ directoryName, fullPath: `/repos/${directoryName}`, ...primary }), remote: null, worktrees };
+function repo(
+  directoryName: string,
+  primary: Partial<WorkingTreeEntry> = {},
+  worktrees: WorkingTreeEntry[] = [],
+  remote: Remote = null,
+): Row {
+  return { kind: 'repository', ...entry({ directoryName, fullPath: `/repos/${directoryName}`, ...primary }), remote, worktrees };
 }
 
 test('deriveRowState: unavailable takes precedence over everything else', () => {
@@ -127,4 +132,94 @@ test('filterRows: omitting the failedPaths argument behaves exactly as before 00
   const rows = [repo('a', { local: 3 }), repo('b', { local: 0 })];
   assert.deepEqual(filterRows(rows, 'dirty', true).map((r) => r.directoryName), ['a']);
   assert.deepEqual(filterRows(rows, 'failed', true), []);
+});
+
+// --- 016: search ---
+
+test('filterRows: search matches directoryName case-insensitively', () => {
+  const rows = [repo('Frontend-App'), repo('backend-api')];
+  assert.deepEqual(filterRows(rows, 'all', true, new Set(), 'FRONT').map((r) => r.directoryName), ['Frontend-App']);
+});
+
+test('filterRows: search matches the remote slug', () => {
+  const rows = [
+    repo('a', {}, [], { host: 'github.com', slug: 'org/widgets', rawUrl: 'git@github.com:org/widgets.git' }),
+    repo('b'),
+  ];
+  assert.deepEqual(filterRows(rows, 'all', true, new Set(), 'widgets').map((r) => r.directoryName), ['a']);
+});
+
+test('filterRows: search matches the origin rawUrl even when the slug is unparseable', () => {
+  const rows = [repo('a', {}, [], { host: null, slug: null, rawUrl: '/Users/me/bare-repo' }), repo('b')];
+  assert.deepEqual(filterRows(rows, 'all', true, new Set(), 'bare-repo').map((r) => r.directoryName), ['a']);
+});
+
+test('filterRows: search matches the current branch', () => {
+  const rows = [
+    repo('a', { head: { detached: false, branch: 'feature/login', upstream: { tracking: 'local-only' } } }),
+    repo('b'),
+  ];
+  assert.deepEqual(filterRows(rows, 'all', true, new Set(), 'login').map((r) => r.directoryName), ['a']);
+});
+
+test('filterRows: whitespace-only search is inactive (full list)', () => {
+  const rows = [repo('a'), repo('b')];
+  assert.deepEqual(filterRows(rows, 'all', true, new Set(), '   ').map((r) => r.directoryName), ['a', 'b']);
+});
+
+test('filterRows: omitting searchQuery matches passing an empty string (empty-query regression guard)', () => {
+  const rows = [repo('a', { local: 3 }), repo('b', { local: 0 })];
+  assert.deepEqual(filterRows(rows, 'dirty', true, new Set()), filterRows(rows, 'dirty', true, new Set(), ''));
+});
+
+test('filterRows: a repo-level search match surfaces ALL its worktrees', () => {
+  const rows = [repo('matching-name', {}, [entry({ directoryName: 'wt-1' }), entry({ directoryName: 'wt-2' })])];
+  const result = filterRows(rows, 'all', true, new Set(), 'matching') as Array<Row & { worktrees: WorkingTreeEntry[] }>;
+  assert.equal(result.length, 1);
+  assert.deepEqual(
+    result[0]!.worktrees.map((w) => w.directoryName),
+    ['wt-1', 'wt-2'],
+  );
+});
+
+test('filterRows: a worktree-only branch match surfaces the parent with just that worktree', () => {
+  const rows = [
+    repo('primary', {}, [
+      entry({ directoryName: 'wt-a', head: { detached: false, branch: 'hotfix-9', upstream: { tracking: 'local-only' } } }),
+      entry({ directoryName: 'wt-b' }),
+    ]),
+  ];
+  const result = filterRows(rows, 'all', true, new Set(), 'hotfix-9') as Array<Row & { worktrees: WorkingTreeEntry[] }>;
+  assert.equal(result.length, 1);
+  assert.deepEqual(
+    result[0]!.worktrees.map((w) => w.directoryName),
+    ['wt-a'],
+  );
+});
+
+test('filterRows: search hides a family with no match in the repo or any worktree', () => {
+  const rows = [repo('primary', {}, [entry({ directoryName: 'wt-a' })])];
+  assert.deepEqual(filterRows(rows, 'all', true, new Set(), 'nonexistent'), []);
+});
+
+test('filterRows: search ANDs with the state filter', () => {
+  const rows = [repo('dirty-match', { local: 3 }), repo('clean-match', { local: 0 })];
+  assert.deepEqual(filterRows(rows, 'dirty', true, new Set(), 'match').map((r) => r.directoryName), ['dirty-match']);
+});
+
+test('filterRows: search ANDs with the failed filter', () => {
+  const rows = [repo('alpha'), repo('beta')];
+  const failedPaths = new Set(['/repos/alpha']);
+  assert.deepEqual(filterRows(rows, 'failed', true, failedPaths, 'alpha').map((r) => r.directoryName), ['alpha']);
+  assert.deepEqual(filterRows(rows, 'failed', true, failedPaths, 'beta'), []);
+});
+
+test('filterRows: search matches an orphan-worktree by its own name, branch, or remote', () => {
+  const orphan: Row = {
+    kind: 'orphan-worktree',
+    ...entry({ directoryName: 'stray' }),
+    remote: { host: 'github.com', slug: 'org/stray-repo', rawUrl: 'git@github.com:org/stray-repo.git' },
+  };
+  assert.deepEqual(filterRows([orphan], 'all', true, new Set(), 'stray-repo').map((r) => r.directoryName), ['stray']);
+  assert.deepEqual(filterRows([orphan], 'all', true, new Set(), 'no-match'), []);
 });
