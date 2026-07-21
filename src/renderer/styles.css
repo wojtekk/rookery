@@ -870,6 +870,11 @@ body {
 .list.busy .name[data-tip]:hover::after {
   display: none;
 }
+/* .row-dup-ico is nested inside .name, so hovering it also matches .name[data-tip]:hover —
+   suppress .name's own tooltip so only the duplicate notice renders. */
+.name:has(.row-dup-ico:hover)::after {
+  display: none;
+}
 
 .foot {
   margin-top: 14px;
