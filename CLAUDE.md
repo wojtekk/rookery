@@ -1,7 +1,7 @@
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at specs/020-fix-row-tooltip-clip/plan.md
+at specs/021-no-refresh-on-cancel-delete/plan.md
 <!-- SPECKIT END -->
 
 Active feature: **Relocate Search Icon Above the Table**
