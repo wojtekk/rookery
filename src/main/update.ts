@@ -8,10 +8,24 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { runGit } from './git/probe';
 import { runPool } from './scan';
-import type { Row, RepoUpdateOutcome, UpdateResult, WorkingTreeEntry } from '../shared/types';
+import type { Row, RepoUpdateOutcome, UpdateReason, UpdateResult, WorkingTreeEntry } from '../shared/types';
 
 const UPDATE_TIMEOUT_MS = 60000;
 const UPDATE_POOL_SIZE = 6;
+
+// ponytail: 500 chars is plenty for a git one-liner error while keeping the tooltip readable;
+// raise if a real-world detail turns out to be truncated mid-sentence.
+const DETAIL_MAX_LEN = 500;
+
+/** Trims and length-caps an error's underlying git text for `UpdateReason.detail` (FR-003). */
+function errorDetail(err: unknown): string | undefined {
+  const stderr = (err as { stderr?: string })?.stderr?.trim();
+  const text = stderr || (err instanceof Error ? err.message : undefined);
+  if (!text) return undefined;
+  return text.length > DETAIL_MAX_LEN ? text.slice(0, DETAIL_MAX_LEN) + '…' : text;
+}
+
+type UpdateOutcome = { result: UpdateResult; reason?: UpdateReason };
 
 // Turns a credential prompt into an immediate error (Principle I: never prompt) for both HTTPS
 // and SSH remotes; scan.ts's tildeShorten is duplicated per-module rather than shared, so this
@@ -49,6 +63,14 @@ export function flattenWorkingTrees(rows: Row[]): FlatEntry[] {
 /** available, non-detached, tracked upstream — subsumes "has a remote" and "branch is tracked". */
 export function isEligible(entry: WorkingTreeEntry): boolean {
   return entry.availability === 'ok' && !entry.head.detached && entry.head.upstream.tracking === 'tracked';
+}
+
+/** Skip sub-reason for an ineligible entry, derived with no new git calls (research Decision 1).
+ *  No-tracked-upstream/local-only entries fall through to `undefined` — never warned (FR-005). */
+export function skipReason(entry: WorkingTreeEntry): UpdateReason | undefined {
+  if (entry.availability !== 'ok') return { category: 'unavailable' };
+  if (entry.head.detached) return { category: 'detached' };
+  return undefined;
 }
 
 type RunOpts = { env: NodeJS.ProcessEnv; timeoutMs?: number };
@@ -91,7 +113,7 @@ async function restoreStash(dir: string, stashed: boolean, opts: RunOpts): Promi
 }
 
 /** fetch + classify (equal/ahead/behind/diverged) + ff-only merge. Never auto-merges (Principle III). */
-async function classifyAndMerge(dir: string, opts: RunOpts): Promise<UpdateResult> {
+async function classifyAndMerge(dir: string, opts: RunOpts): Promise<UpdateOutcome> {
   const upstreamRef = (
     await runGit(['-C', dir, 'rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], dir, opts)
   ).trim();
@@ -99,49 +121,54 @@ async function classifyAndMerge(dir: string, opts: RunOpts): Promise<UpdateResul
   const remote = upstreamRef.slice(0, slash);
   const branch = upstreamRef.slice(slash + 1);
 
-  await runGit(['-C', dir, 'fetch', remote, branch], dir, { ...opts, timeoutMs: UPDATE_TIMEOUT_MS });
+  try {
+    await runGit(['-C', dir, 'fetch', remote, branch], dir, { ...opts, timeoutMs: UPDATE_TIMEOUT_MS });
+  } catch (err) {
+    return { result: 'failed', reason: { category: 'fetch-failed', detail: errorDetail(err) } };
+  }
 
   const [head, upstream] = (await runGit(['-C', dir, 'rev-parse', 'HEAD', '@{u}'], dir, opts)).trim().split('\n');
-  if (head === upstream) return 'already-current';
-  if (await isAncestor(dir, upstream!, head!, opts)) return 'already-current'; // upstream is an ancestor -> local ahead
-  if (!(await isAncestor(dir, head!, upstream!, opts))) return 'failed'; // neither is an ancestor -> diverged
+  if (head === upstream) return { result: 'already-current' };
+  if (await isAncestor(dir, upstream!, head!, opts)) return { result: 'already-current' }; // upstream is an ancestor -> local ahead
+  if (!(await isAncestor(dir, head!, upstream!, opts))) return { result: 'failed', reason: { category: 'diverged' } }; // neither is an ancestor -> diverged
 
   await runGit(['-C', dir, 'merge', '--ff-only', '@{u}'], dir, opts);
-  return 'updated';
+  return { result: 'updated' };
 }
 
-async function updateRepoInner(dir: string, opts: RunOpts): Promise<UpdateResult> {
+async function updateRepoInner(dir: string, opts: RunOpts): Promise<UpdateOutcome> {
   let stashed = false;
   if (await isDirty(dir, opts)) {
     try {
       await runGit(['-C', dir, 'stash', 'push', '--include-untracked', '-m', 'git-manager-update'], dir, opts);
       stashed = true;
-    } catch {
-      return 'failed';
+    } catch (err) {
+      return { result: 'failed', reason: { category: 'stash-failed', detail: errorDetail(err) } };
     }
   }
 
-  let result: UpdateResult;
+  let outcome: UpdateOutcome;
   try {
-    result = await classifyAndMerge(dir, opts);
-  } catch {
-    result = 'failed';
+    outcome = await classifyAndMerge(dir, opts);
+  } catch (err) {
+    outcome = { result: 'failed', reason: { category: 'update-failed', detail: errorDetail(err) } };
   }
 
-  return (await restoreStash(dir, stashed, opts)) ? result : 'failed';
+  if (await restoreStash(dir, stashed, opts)) return outcome;
+  return { result: 'failed', reason: { category: 'stash-failed' } };
 }
 
 /** Bounds the whole per-repo sequence so one unreachable remote can never hang the run (FR-013/SC-007). */
-export async function updateRepo(absPath: string): Promise<UpdateResult> {
+export async function updateRepo(absPath: string): Promise<UpdateOutcome> {
   const opts: RunOpts = { env: NON_INTERACTIVE_ENV };
   let timer: ReturnType<typeof setTimeout>;
-  const deadline = new Promise<UpdateResult>((resolve) => {
-    timer = setTimeout(() => resolve('failed'), UPDATE_TIMEOUT_MS);
+  const deadline = new Promise<UpdateOutcome>((resolve) => {
+    timer = setTimeout(() => resolve({ result: 'failed', reason: { category: 'timed-out' } }), UPDATE_TIMEOUT_MS);
   });
   try {
     return await Promise.race([updateRepoInner(absPath, opts), deadline]);
-  } catch {
-    return 'failed';
+  } catch (err) {
+    return { result: 'failed', reason: { category: 'update-failed', detail: errorDetail(err) } };
   } finally {
     clearTimeout(timer!);
   }
@@ -186,9 +213,10 @@ export async function updateAll(rows: Row[]): Promise<RepoUpdateOutcome[]> {
       const outcomes: RepoUpdateOutcome[] = [];
       for (const f of family) {
         try {
-          outcomes.push({ path: f.path, result: await updateRepo(expandTilde(f.path)) });
-        } catch {
-          outcomes.push({ path: f.path, result: 'failed' });
+          const { result, reason } = await updateRepo(expandTilde(f.path));
+          outcomes.push({ path: f.path, result, reason });
+        } catch (err) {
+          outcomes.push({ path: f.path, result: 'failed', reason: { category: 'update-failed', detail: errorDetail(err) } });
         }
       }
       return outcomes;
@@ -197,7 +225,7 @@ export async function updateAll(rows: Row[]): Promise<RepoUpdateOutcome[]> {
 
   const skipped: RepoUpdateOutcome[] = flat
     .filter((f) => !eligiblePaths.has(f.path))
-    .map((f) => ({ path: f.path, result: 'skipped' }));
+    .map((f) => ({ path: f.path, result: 'skipped', reason: skipReason(f.entry) }));
 
   return [...updated, ...skipped];
 }

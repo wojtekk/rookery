@@ -1,7 +1,7 @@
 // Table rendering: primary rows + grouped worktrees, left-edge state indicator + glyph (FR-028),
 // name/slug/host, branch+tracking, counts, tooltip, collision fragment, and the per-row ⋮ action menu.
 
-import type { Action, Row, WorkingTreeEntry, Remote, RowState } from '../../shared/types';
+import type { Action, Row, WorkingTreeEntry, Remote, RowState, UpdateReason, UpdateReasonCategory } from '../../shared/types';
 import { deriveRowState } from './filter.js';
 import { isActionEnabledForRow } from '../../shared/actions.js';
 import { iconSvg, iconLabel } from './icons/catalog.js';
@@ -33,9 +33,22 @@ const STATE_GLYPH_LABEL: Record<RowState, string> = {
   unavailable: 'unavailable',
 };
 
-// Non-colour cue for a failed "pull all" run (Principle IV: colour MUST NOT be the sole signal).
-// Distinguishes a failed-pull row from an ordinary amber out-of-sync row without relying on colour.
-const FAIL_TOOLTIP = 'pull failed — open in your merge tool';
+// Plain-language lead line for the warn icon's tooltip (013 data-model.md "Category → sentence").
+// Non-colour cue (Principle IV): the icon + this text identify the row, not the red tint alone.
+const REASON_SENTENCE: Record<UpdateReasonCategory, string> = {
+  diverged: 'Update blocked — diverged from upstream, fast-forward not possible',
+  'fetch-failed': "Update blocked — couldn't reach the remote",
+  'stash-failed': "Update blocked — local changes couldn't be safely stashed",
+  'timed-out': 'Update blocked — timed out',
+  'update-failed': 'Update blocked — failed unexpectedly',
+  unavailable: 'Update skipped — working tree unavailable',
+  detached: 'Update skipped — not on a branch (detached HEAD)',
+};
+
+function warnTooltip(reason: UpdateReason): string {
+  const sentence = REASON_SENTENCE[reason.category];
+  return reason.detail ? `${sentence}\n\n${reason.detail}` : sentence;
+}
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag);
@@ -64,18 +77,37 @@ function relativeTime(iso: string | null): string {
   return iso.slice(0, 10); // git's `%cI` is strict ISO 8601, so this is already YYYY-MM-DD
 }
 
-function fillBranchCell(cell: HTMLElement, entry: WorkingTreeEntry): void {
+// Branch line (first line of the branch-tracking cell) as a flex row: [truncatable text] +
+// [warn icon: flex-shrink:0] — same pattern as .name's .dirname/.frag, so a long branch name
+// truncates before the icon ever clips (styles.css).
+function buildBranchLine(text: string, reason: UpdateReason | undefined): HTMLElement {
+  const line = el('div', 'branch');
+  const label = el('span', 'branch-text');
+  label.textContent = text;
+  line.appendChild(label);
+  if (reason) {
+    const warnIco = el('span', 'row-warn-ico');
+    warnIco.setAttribute('role', 'img');
+    warnIco.setAttribute('aria-label', REASON_SENTENCE[reason.category]);
+    warnIco.setAttribute('data-tip', warnTooltip(reason));
+    warnIco.textContent = '⚠';
+    line.appendChild(warnIco);
+  }
+  return line;
+}
+
+function fillBranchCell(cell: HTMLElement, entry: WorkingTreeEntry, reason: UpdateReason | undefined): void {
   if (entry.availability !== 'ok') {
-    appendText(cell, 'branch', '—');
+    cell.appendChild(buildBranchLine('—', reason));
     appendText(cell, 'track', 'unavailable');
     return;
   }
   const { head } = entry;
   if (head.detached) {
-    appendText(cell, 'branch', 'detached');
+    cell.appendChild(buildBranchLine('detached', reason));
     return;
   }
-  appendText(cell, 'branch', head.branch);
+  cell.appendChild(buildBranchLine(head.branch, reason));
   const track = el('div', 'track');
   if (head.upstream.tracking === 'local-only') {
     const tag = el('span', 'tag local');
@@ -210,6 +242,7 @@ function buildRow(
   handlers: RowActionHandlers,
   failed: boolean,
   locked: boolean,
+  reason: UpdateReason | undefined,
 ): HTMLElement {
   const state = deriveRowState(entry);
   const row = el('div', `row${isWorktree ? ' wt' : ''} ${STATE_ROW_CLASS[state]}${failed ? ' fail' : ''}`);
@@ -217,11 +250,10 @@ function buildRow(
   row.tabIndex = locked ? -1 : 0;
 
   const glyphCell = el('div', 'glyph-cell');
-  const glyph = el('span', `g ${failed ? 'g-fail' : STATE_GLYPH_CLASS[state]}`);
+  const glyph = el('span', `g ${STATE_GLYPH_CLASS[state]}`);
   glyph.setAttribute('role', 'img');
-  glyph.setAttribute('aria-label', failed ? 'pull failed' : STATE_GLYPH_LABEL[state]);
-  glyph.textContent = failed ? '⚠' : STATE_GLYPH_TEXT[state];
-  if (failed) glyph.setAttribute('data-tip', FAIL_TOOLTIP);
+  glyph.setAttribute('aria-label', STATE_GLYPH_LABEL[state]);
+  glyph.textContent = STATE_GLYPH_TEXT[state];
   glyphCell.appendChild(glyph);
   row.appendChild(glyphCell);
 
@@ -250,7 +282,7 @@ function buildRow(
   row.appendChild(nameCell);
 
   const branchCell = el('div', 'branch-cell');
-  fillBranchCell(branchCell, entry);
+  fillBranchCell(branchCell, entry, reason);
   row.appendChild(branchCell);
 
   row.appendChild(buildLocalCell(entry));
@@ -272,6 +304,7 @@ export function renderRows(
   handlers: RowActionHandlers,
   failedPaths: Set<string>,
   locked = false,
+  warnings: Map<string, UpdateReason> = new Map(),
 ): void {
   listEl.innerHTML = '';
   for (const row of rows) {
@@ -286,6 +319,7 @@ export function renderRows(
         handlers,
         failedPaths.has(row.fullPath),
         locked,
+        warnings.get(row.fullPath),
       ),
     );
     if (row.kind === 'repository') {
@@ -305,6 +339,7 @@ export function renderRows(
             handlers,
             failedPaths.has(wt.fullPath),
             locked,
+            warnings.get(wt.fullPath),
           ),
         );
       }

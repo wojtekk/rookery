@@ -379,7 +379,7 @@ body {
 }
 .row.r-dead .name,
 .row.r-dead .slug,
-.row.r-dead .branch {
+.row.r-dead .branch-text {
   color: var(--faint);
 }
 
@@ -469,12 +469,6 @@ body {
   font-size: 14px;
   line-height: 1;
 }
-.g-fail {
-  color: var(--fail);
-  font-size: 12px;
-  line-height: 1;
-}
-
 /* name cell */
 .name-cell {
   min-width: 0;
@@ -515,11 +509,38 @@ body {
   margin-top: 2px;
 }
 
+/* Reusable row-warning affordance (FR-014/015) — a non-colour cue (Principle IV) shared by both
+   failed-attempt and stuck-skip outcomes; the .fail row tint stays keyed on `failed` alone (FR-012).
+   Pinned to the branch-tracking cell's right edge (position:relative there), independent of the
+   end of the branch name (first line), a flex-shrink:0 sibling of the truncatable text. */
+.row-warn-ico {
+  flex-shrink: 0;
+  color: var(--sync);
+  font-size: 15px;
+  line-height: 1;
+}
+/* Multi-line explanation (category sentence + optional git detail, FR-006/007). A fixed `width`
+   (not `max-width`) avoids the icon's own tiny box collapsing shrink-to-fit sizing down to its
+   narrowest word. Grows rightward (the default [data-tip] direction) — more natural since the icon
+   sits inline after the branch name, with room to its right in the row; .tip-up (renderer.ts
+   positionRowIconTooltip) still flips it up near the list bottom. */
+.row-warn-ico[data-tip]:hover::after {
+  white-space: pre-line;
+  width: 320px;
+}
+
 /* branch cell */
 .branch-cell {
   min-width: 0;
 }
 .branch {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.branch-text {
+  min-width: 0;
   font-family: var(--mono);
   font-size: 13px;
   color: var(--fg);

@@ -88,9 +88,29 @@ export type DeleteOutcome = { outcome: 'deleted' } | { outcome: 'cancelled' } | 
 // `fullPath` (matches Row.fullPath) so the renderer can key its failed-path overlay directly on it.
 export type UpdateResult = 'updated' | 'already-current' | 'skipped' | 'failed';
 
+// Why a working tree wasn't brought current (013 data-model.md). Failed-attempt categories carry
+// `detail` (the underlying git error text, FR-003) when git produced one; skip categories
+// (unavailable/detached) are derived from the entry itself and carry no detail.
+export type UpdateReasonCategory =
+  | 'diverged'
+  | 'fetch-failed'
+  | 'stash-failed'
+  | 'timed-out'
+  | 'update-failed'
+  | 'unavailable'
+  | 'detached';
+
+export interface UpdateReason {
+  category: UpdateReasonCategory;
+  detail?: string;
+}
+
 export interface RepoUpdateOutcome {
   path: string;
   result: UpdateResult;
+  // Present iff the tree is in the warned set: every `failed` result, plus `skipped` only for
+  // unavailable/detached (013 data-model.md invariant). Absent for updated/already-current/no-upstream skips.
+  reason?: UpdateReason;
 }
 
 // Cleanup (008 data-model.md): why a candidate was surfaced by the scan. Exactly one reason per
