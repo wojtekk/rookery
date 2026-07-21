@@ -581,6 +581,31 @@ body {
   font-weight: 400;
   font-size: 12px;
 }
+/* Duplicate-clone indicator (017) — inline next to .frag, sized to the row's 16x16 icon svg rather
+   than .row-action-ico's 26px (that one lives in its own dedicated column; this sits inline with
+   text, same flex-shrink:0 treatment as .frag). */
+.row-dup-ico {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 6px;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+.row-dup-ico:hover:not(:disabled) {
+  border-color: var(--line-2);
+  color: var(--fg);
+  background: var(--surface);
+}
+/* blocked while a long operation runs (FR-006) — MUST NOT change colour. */
+.row-dup-ico:disabled {
+  cursor: not-allowed;
+}
 .slug {
   font-family: var(--mono);
   font-size: 11.5px;
@@ -756,6 +781,7 @@ body {
    indicator need this too. Colour is inherited from the host (currentColor), unchanged. */
 .row-delete-ico svg,
 .row-action-ico svg,
+.row-dup-ico svg,
 .modal-close svg,
 .dir .rm svg,
 .mini svg,

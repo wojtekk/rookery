@@ -353,6 +353,11 @@ function render(): void {
         onDelete: (target) => {
           void api.deleteRow(target).then(() => doRefresh());
         },
+        onFindDuplicate: (key) => {
+          searchExpanded = true;
+          searchQuery = key;
+          render();
+        },
       },
       failedPaths,
       busy,
@@ -434,7 +439,7 @@ els.list.addEventListener('mouseleave', scheduleScrollbarHide);
 els.list.addEventListener('mouseover', (e) => {
   const target = e.target;
   if (!(target instanceof Element)) return;
-  const btn = target.closest('.row-delete-ico, .row-action-ico, .row-warn-ico');
+  const btn = target.closest('.row-delete-ico, .row-action-ico, .row-warn-ico, .row-dup-ico');
   if (btn instanceof HTMLElement) positionRowIconTooltip(btn);
 });
 

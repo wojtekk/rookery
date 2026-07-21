@@ -1,10 +1,52 @@
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at specs/016-repo-search-filter/plan.md
+at specs/017-duplicate-clone-indicator/plan.md
 <!-- SPECKIT END -->
 
-Active feature: **Debounced Repository Search Filter**
+Active feature: **Duplicate-Clone Indicator**
+(`specs/017-duplicate-clone-indicator/plan.md`) — replaces today's unexplained
+"…/parent-folder" `.frag` text (shown when two rows are clones of the same
+remote sharing a directory name, per the existing `collisionFragment` gate in
+`scan.ts`'s `assignCollisionFragments`) with a dedicated, clickable duplicate
+indicator: a `<button class="row-dup-ico">` rendered next to `.frag` in
+`buildRow` (`view/table.ts`) whenever `entry.collisionFragment` is set, using
+a new Tabler-outline "layers-intersect" glyph (two overlapping rectangles)
+added to the icon catalog (`view/icons/catalog.ts`) — chosen from 8 candidates
+presented to the user in a throwaway HTML comparison page. Hovering it shows a tooltip stating the row is
+cloned in more than one place plus this row's own parent-folder name — phrased
+as "this copy is under …/{fragment}", **never** as if it were the sibling's
+location, since `collisionFragment` is only ever this row's own parent folder
+and no sibling-location data is threaded between rows (per a 2026-07-21
+clarification: "keep it cheap"). Clicking it calls a new
+`RowActionHandlers.onFindDuplicate(key)` — `key = remote?.slug ??
+entry.directoryName`, the identical fallback already used for the `.slug`
+cell — which `renderer.ts` implements as `searchExpanded = true; searchQuery =
+key; render()`, reusing feature 016's search state and bypassing its 150 ms
+debounce the same way its × clear button already does, so the table narrows
+to every clone immediately. Detection itself (`scan.ts`, `filterRows`) is
+completely unchanged — this feature is presentation-and-one-click-action only.
+The button joins every other row icon's established conventions: `disabled =
+locked` for the feature-009 long-operation lockout (no colour/opacity change,
+`.row-dup-ico:disabled { cursor: not-allowed }` only) and the feature-012/013
+`.tip-up`/`positionRowIconTooltip` upward-flip so its tooltip never clips.
+**Renderer-only**: no new IPC, main-process change, dependency, or persisted
+setting — the diff touches only `view/icons/catalog.ts`, `view/table.ts`,
+`renderer.ts`, and `styles.css`. No new pure/branching logic was introduced
+(the one new line, `remote?.slug ?? entry.directoryName`, is a trivial
+fallback already used elsewhere), so no new test file was required per the
+plan's Constitution Check — **implementation complete through T010 and T012**;
+build and all 122 tests pass unchanged. **T011 (the full `quickstart.md`
+walkthrough against `pnpm start`, scenarios A–I) is still owed** — an agent
+cannot drive real mouse/hover/click interaction against the Electron window
+from this environment. This feature's own `/speckit-analyze` pass surfaced
+and fixed two pre-implementation issues: an unreachable edge case in the
+original spec (a colliding pair where only *one* row lacks a remote — actually
+impossible, since the detection key requires the same slug on both sides) and
+an ambiguous tooltip-phrasing example that could have been misread as naming
+the sibling's location instead of the row's own.
+
+Prior feature: **Debounced Repository Search Filter**
 (`specs/016-repo-search-filter/plan.md`) — a header search affordance narrows
 the repository table live as the user types, matching a case-insensitive
 substring against each row's remote slug, directory name, origin URL, and
