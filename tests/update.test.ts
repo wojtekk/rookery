@@ -9,7 +9,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { updateAll, updateRepo } from '../src/main/update';
+import { updateAll, updateRepo, skipReason } from '../src/main/update';
 import type { Row, WorkingTreeEntry } from '../src/shared/types';
 
 function git(root: string, args: string[]): void {
@@ -98,8 +98,9 @@ test('updateRepo: clean, local behind upstream → updated (fast-forwarded, no s
   await withTmp(async (root) => {
     const { work, bare } = initCleanClone(root);
     const remoteSha = advanceRemote(root, bare);
-    const result = await updateRepo(work);
+    const { result, reason } = await updateRepo(work);
     assert.equal(result, 'updated');
+    assert.equal(reason, undefined); // FR-010: success paths carry no reason
     assert.equal(headSha(work), remoteSha);
     assert.equal(stashList(work), '');
   });
@@ -112,9 +113,10 @@ test('updateRepo: dirty (tracked+untracked) + behind → updated, working-tree e
     fs.writeFileSync(path.join(work, 'tracked.txt'), 'my local edit\n');
     fs.writeFileSync(path.join(work, 'untracked.txt'), 'scratch\n');
 
-    const result = await updateRepo(work);
+    const { result, reason } = await updateRepo(work);
 
     assert.equal(result, 'updated');
+    assert.equal(reason, undefined);
     assert.equal(headSha(work), remoteSha);
     assert.equal(fs.readFileSync(path.join(work, 'tracked.txt'), 'utf8'), 'my local edit\n');
     assert.equal(fs.readFileSync(path.join(work, 'untracked.txt'), 'utf8'), 'scratch\n');
@@ -126,8 +128,9 @@ test('updateRepo: local == upstream → already-current (no commits created)', a
   await withTmp(async (root) => {
     const { work } = initCleanClone(root);
     const before = headSha(work);
-    const result = await updateRepo(work);
+    const { result, reason } = await updateRepo(work);
     assert.equal(result, 'already-current');
+    assert.equal(reason, undefined);
     assert.equal(headSha(work), before);
   });
 });
@@ -140,9 +143,10 @@ test('updateRepo: local ahead only → already-current (HEAD unchanged; push is 
     git(work, ['commit', '-q', '-m', 'ahead']);
     const before = headSha(work);
 
-    const result = await updateRepo(work);
+    const { result, reason } = await updateRepo(work);
 
     assert.equal(result, 'already-current');
+    assert.equal(reason, undefined);
     assert.equal(headSha(work), before);
   });
 });
@@ -160,9 +164,10 @@ test('updateRepo: diverged (both advanced) + dirty → failed (HEAD unchanged, n
     fs.writeFileSync(path.join(work, 'tracked.txt'), 'dirty edit\n');
     fs.writeFileSync(path.join(work, 'untracked.txt'), 'scratch\n');
 
-    const result = await updateRepo(work);
+    const { result, reason } = await updateRepo(work);
 
     assert.equal(result, 'failed'); // Principle III: never auto-merge a divergence
+    assert.equal(reason?.category, 'diverged'); // 013 FR-001/002
     assert.equal(headSha(work), beforeHead); // no merge commit; HEAD untouched
     assert.equal(fs.readFileSync(path.join(work, 'tracked.txt'), 'utf8'), 'dirty edit\n'); // stash restored
     assert.equal(fs.readFileSync(path.join(work, 'untracked.txt'), 'utf8'), 'scratch\n');
@@ -170,15 +175,17 @@ test('updateRepo: diverged (both advanced) + dirty → failed (HEAD unchanged, n
   });
 });
 
-test('updateRepo: fetch fails (unreachable remote) → failed, HEAD unchanged', async () => {
+test('updateRepo: fetch fails (unreachable remote) → failed, HEAD unchanged, reason carries git detail (FR-003)', async () => {
   await withTmp(async (root) => {
     const { work } = initCleanClone(root);
     git(work, ['remote', 'set-url', 'origin', path.join(root, 'does-not-exist.git')]);
     const before = headSha(work);
 
-    const result = await updateRepo(work);
+    const { result, reason } = await updateRepo(work);
 
     assert.equal(result, 'failed');
+    assert.equal(reason?.category, 'fetch-failed');
+    assert.ok(reason?.detail && reason.detail.length > 0);
     assert.equal(headSha(work), before);
   });
 });
@@ -221,4 +228,38 @@ test('updateAll: primary + linked worktree (shared stash) update concurrently wi
     assert.equal(fs.readFileSync(path.join(wtDir, 'worktree-dirty.txt'), 'utf8'), 'worktree edit\n');
     assert.equal(stashList(work), ''); // stash ref is shared across the family — checking it once suffices
   });
+});
+
+test('skipReason: unavailable → unavailable, detached → detached, tracked/no-upstream → undefined (FR-004/005)', () => {
+  const unavailable: WorkingTreeEntry = {
+    availability: 'unavailable',
+    directoryName: 'x',
+    fullPath: '~/x',
+    collisionFragment: null,
+  };
+  assert.equal(skipReason(unavailable)?.category, 'unavailable');
+
+  const detached: WorkingTreeEntry = {
+    availability: 'ok',
+    head: { detached: true },
+    local: 0,
+    lastChange: null,
+    directoryName: 'y',
+    fullPath: '~/y',
+    collisionFragment: null,
+  };
+  assert.equal(skipReason(detached)?.category, 'detached');
+
+  assert.equal(skipReason(trackedEntry('~/z', 'main')), undefined); // tracked → never warned when eligible
+
+  const localOnly: WorkingTreeEntry = {
+    availability: 'ok',
+    head: { detached: false, branch: 'main', upstream: { tracking: 'local-only' } },
+    local: 0,
+    lastChange: null,
+    directoryName: 'w',
+    fullPath: '~/w',
+    collisionFragment: null,
+  };
+  assert.equal(skipReason(localOnly), undefined); // no tracked upstream → never warned (FR-005)
 });

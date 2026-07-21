@@ -1,9 +1,61 @@
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
-shell commands, and other important information, read the current plan:
-`specs/012-fix-delete-tooltip/plan.md`
+shell commands, and other important information, read the current plan
+at specs/013-pull-warn-reasons/plan.md
+<!-- SPECKIT END -->
 
-Active feature: **Fix Delete Button Tooltip Clipping**
+Active feature: **Explain Why a Repository Wasn't Updated by Pull All**
+(`specs/013-pull-warn-reasons/plan.md`) — "Pull all" used to collapse every
+non-success outcome into one opaque `failed` (or a bare `skipped`), so a
+diverged branch, an unreachable remote, a failed autostash, a timeout, an
+unavailable working tree, and a detached HEAD were all visually identical.
+Fix: widen `RepoUpdateOutcome` with an optional `reason?: { category;
+detail? }` (`shared/types.ts`), capture `execFile`'s stderr on a rejected git
+call (`git/probe.ts`'s `runGit`) so obscure errors (e.g. the fsmonitor daemon
+noise from the original bug report) become visible, and label each existing
+non-success branch in `update.ts` (`diverged` / `fetch-failed` /
+`stash-failed` / `timed-out` / `update-failed` catch-all for attempts;
+`unavailable` / `detached` for stuck skips — never for a no-tracked-upstream
+skip, which is never warned). The renderer generalizes feature 007's
+failed-only `⚠`/`FAIL_TOOLTIP` into a reusable, source-agnostic
+`.row-warn-ico`, rendered **inline at the end of the branch name** — the
+first line of the branch-tracking cell (`.branch` is now a flex row; the
+icon is a `flex-shrink:0` sibling of `.branch-text`, same pattern as
+`.name`'s `.dirname`/`.frag`, so a long branch name truncates before the
+icon ever clips — `glyph-cell` reverts to showing the plain git-state
+glyph). Revised twice already, both times from live-testing feedback: first
+from an initial slug-line placement to a fixed corner on the branch-tracking
+cell's right edge (`position: absolute`) — that pass also fixed a tooltip
+bug where the box collapsed to an unreadably narrow, one-word-per-line width
+because the icon's own tiny box was the tooltip's CSS containing block, so
+shrink-to-fit sizing collapsed toward the widest single word (fixed with an
+explicit `width: 320px` instead of `max-width`); then from that fixed corner
+to the current inline-after-branch-name placement, which reads more
+naturally and lets the tooltip grow **rightward** (the default `[data-tip]`
+direction, reverted from a leftward override) into the row's open space.
+The tooltip's lead sentence was also reworded to open with "Update blocked —"
+(attempted-and-failed categories) or "Update skipped —" (stuck-skip
+categories) instead of a bare category fragment, so hovering makes the
+attempted-vs-skipped distinction (FR-004) obvious. It's still multi-line
+(`white-space: pre-line`, lead sentence + optional git detail) and reuses
+feature 012's `.tip-up`/`positionRowIconTooltip` flip (its `mouseover`
+selector now also matches `.row-warn-ico`). `warnings: Map<path,
+reason>` is renderer-only, in-memory, rebuilt on every "Pull all" run, and
+pruned on manual Refresh via the same feature-007 "row now looks clean" rule
+(plus per-category checks for `unavailable`/`detached`) — `failedPaths` and
+the "Failed" filter chip keep their unchanged `result === 'failed'` meaning
+(FR-012); the warn icon is strictly additive. **Renderer + main, no new
+IPC/dependency/persisted setting** — "Pull all" behavior itself is unchanged
+(FR-010, Principle III: a diverged repo is still left `failed`, never
+auto-merged). **Implementation complete through T012** — build and all 103
+tests pass (102 prior + a new pure `skipReason` test; the diverged/
+fetch-failed cases in `tests/update.test.ts` now assert `reason.category`
+directly, satisfying the constitution's mutating-operation runnable-check for
+`update.ts`). **T013 (the full `quickstart.md` walkthrough against `pnpm
+start`, scenarios A–L) is still owed** — an agent cannot drive real
+mouse/hover interaction against the Electron window from this environment.
+
+Prior feature: **Fix Delete Button Tooltip Clipping**
 (`specs/012-fix-delete-tooltip/plan.md`) — the delete icon's (and every
 configurable per-row action icon's) hover tooltip was clipped at the table's
 right edge, and — on whichever row is last **visible** in a scrolled or short
@@ -23,11 +75,12 @@ configurable `.menu` action icon (FR-006, added after user-reported testing
 found the same bug there). No `::-webkit-scrollbar-corner` styling is added —
 scoped to the specific overflow trigger, per an explicit clarification.
 **Renderer-only**: no new dependency, no IPC/main-process change, no
-persisted setting. Build and all 102 tests pass. **T002 and T004 (manual
-`quickstart.md` hover walkthroughs) are in progress directly with the user**
-— two real implementation gaps (the last-*visible*-vs-last-DOM-row distinction;
-extending the fix to custom action icons) were already found and fixed via
-that live testing; final confirmation is still pending.
+persisted setting. Build and all 102 tests passed; the branch was merged to
+`main` (two real implementation gaps — the last-*visible*-vs-last-DOM-row
+distinction; extending the fix to custom action icons — were found and fixed
+via manual testing before merge). Feature 013 above reused (and had to
+update, to stay uniform) both its `.tip-up`/`positionRowIconTooltip`
+mechanism and its generalized `⚠` glyph.
 
 Prior feature: **Publish as a Public Open-Source Project on GitHub**
 (`specs/010-open-source-release/plan.md`) — rename the public GitHub repo
@@ -112,7 +165,6 @@ Worktree Whose Directory Is Already Missing**
 (`specs/003-startup-loading-indicator/plan.md`), **Custom Per-Repository
 Action Launchers** (`specs/002-custom-action-launchers/plan.md`), and the
 foundational **Repo Dashboard** (`specs/001-repo-dashboard/plan.md`).
-<!-- SPECKIT END -->
 
 ## Toolchain
 

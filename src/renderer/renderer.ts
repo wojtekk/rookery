@@ -1,6 +1,6 @@
 // Bootstrap: calls IPC, holds view state (sort, state filter, worktree toggle), re-renders on change.
 
-import type { CleanupResult, Row, Settings, RepoDashboardApi, UpdateResult } from '../shared/types';
+import type { CleanupResult, Row, Settings, RepoDashboardApi, UpdateReason, UpdateResult, WorkingTreeEntry } from '../shared/types';
 import { sortRows } from './view/sort.js';
 import { deriveRowState, filterRows, type StateFilter } from './view/filter.js';
 import { renderRows, renderSkeletonRows, updateSortIndicator, wireSortHeaders } from './view/table.js';
@@ -66,6 +66,7 @@ let refreshing = false;
 let updating = false; // re-entry guard + toolbar spinner for "Pull all" (FR-009)
 let cleaning = false; // re-entry guard + toolbar spinner for "Cleanup"; mutually exclusive with updating (FR-012)
 let failedPaths = new Set<string>(); // paths with result 'failed' from the last "Pull all" run (FR-014)
+let warnings = new Map<string, UpdateReason>(); // warned-set reasons from the last "Pull all" run (013 FR-001/004), in-memory only (FR-011)
 let loadState: LoadState = 'loading';
 let busyShowTimer: ReturnType<typeof setTimeout> | undefined;
 let busyLoaderShownAt: number | null = null;
@@ -112,13 +113,22 @@ function scheduleScrollbarHide(): void {
 // Tooltip box height (~30px: padding + line height + border) plus its 8px gap, rounded up.
 const TOOLTIP_MIN_SPACE_PX = 40;
 
-/** Flip a row-edge icon's tooltip upward when there's no room below it in the *visible* list — a
+/** Flip a row icon's tooltip upward when there's no room below it in the *visible* list — a
  *  scroll-position fact `:last-child` can't express, since the last DOM row isn't necessarily the
- *  last one in view (012 edge case). Covers the delete icon and every configurable .menu action
- *  icon — both anchor their tooltip from an icon at/near the row's right edge. */
+ *  last one in view (012 edge case). Covers the delete icon, every configurable .menu action icon,
+ *  and the warn icon (013) — horizontal growth direction is unaffected and stays per-icon in CSS. */
 function positionRowIconTooltip(btn: HTMLElement): void {
   const spaceBelow = els.list.getBoundingClientRect().bottom - btn.getBoundingClientRect().bottom;
   btn.classList.toggle('tip-up', spaceBelow < TOOLTIP_MIN_SPACE_PX);
+}
+
+// A warning clears on Refresh only when its cause is locally visible as resolved (FR-008): stuck-skip
+// reasons check the specific condition that stuck them; attempt-failure reasons reuse feature 007's
+// "row now looks clean" rule (deriveRowState), since a re-run of "Pull all" is what truly reconfirms them.
+function isWarningResolved(entry: WorkingTreeEntry, reason: UpdateReason): boolean {
+  if (reason.category === 'unavailable') return entry.availability === 'ok';
+  if (reason.category === 'detached') return entry.availability === 'ok' && !entry.head.detached;
+  return deriveRowState(entry) === 'clean';
 }
 
 // A manual refresh re-reads local git state only (Principle II — no fetch), so it can only prove a
@@ -127,17 +137,22 @@ function positionRowIconTooltip(btn: HTMLElement): void {
 // all" (e.g. pure network/auth failure) will also be cleared by this — only a re-run of "Pull all"
 // can truly confirm a fetch succeeds.
 function pruneFixedFailedPaths(): void {
-  if (failedPaths.size === 0) return;
+  if (failedPaths.size === 0 && warnings.size === 0) return;
   const stillFailed = new Set<string>();
+  const stillWarned = new Map<string, UpdateReason>();
+  const check = (entry: WorkingTreeEntry): void => {
+    if (failedPaths.has(entry.fullPath) && deriveRowState(entry) !== 'clean') stillFailed.add(entry.fullPath);
+    const reason = warnings.get(entry.fullPath);
+    if (reason && !isWarningResolved(entry, reason)) stillWarned.set(entry.fullPath, reason);
+  };
   for (const row of rows) {
-    if (failedPaths.has(row.fullPath) && deriveRowState(row) !== 'clean') stillFailed.add(row.fullPath);
+    check(row);
     if (row.kind === 'repository') {
-      for (const wt of row.worktrees) {
-        if (failedPaths.has(wt.fullPath) && deriveRowState(wt) !== 'clean') stillFailed.add(wt.fullPath);
-      }
+      for (const wt of row.worktrees) check(wt);
     }
   }
   failedPaths = stillFailed;
+  warnings = stillWarned;
 }
 
 async function doRefresh(opts: { pruneFixedFailed?: boolean } = {}): Promise<void> {
@@ -160,12 +175,14 @@ async function doUpdateAll(): Promise<void> {
   if (updating || cleaning) return; // FR-012: mutually exclusive with Cleanup
   updating = true;
   failedPaths = new Set();
+  warnings = new Map();
   beginBusyLock();
   render();
 
   try {
     const outcomes = await api.updateAll();
     failedPaths = new Set(outcomes.filter((o) => o.result === 'failed').map((o) => o.path));
+    warnings = new Map(outcomes.filter((o) => o.reason).map((o) => [o.path, o.reason!]));
 
     const counts: Record<UpdateResult, number> = { updated: 0, 'already-current': 0, skipped: 0, failed: 0 };
     for (const o of outcomes) counts[o.result]++;
@@ -281,7 +298,7 @@ function render(): void {
       onDelete: (target) => {
         void api.deleteRow(target).then(() => doRefresh());
       },
-    }, failedPaths, busy);
+    }, failedPaths, busy, warnings);
   }
 
   els.list.hidden = rows.length === 0 && !isInitialLoading;
@@ -357,7 +374,7 @@ els.list.addEventListener('mouseleave', scheduleScrollbarHide);
 els.list.addEventListener('mouseover', (e) => {
   const target = e.target;
   if (!(target instanceof Element)) return;
-  const btn = target.closest('.row-delete-ico, .row-action-ico');
+  const btn = target.closest('.row-delete-ico, .row-action-ico, .row-warn-ico');
   if (btn instanceof HTMLElement) positionRowIconTooltip(btn);
 });
 

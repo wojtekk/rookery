@@ -26,9 +26,11 @@ export function runGit(
       'git',
       args,
       { cwd, timeout: opts?.timeoutMs ?? SPAWN_TIMEOUT_MS, killSignal: 'SIGKILL', env: opts?.env ?? process.env },
-      (err, stdout) => {
-        if (err) reject(err);
-        else resolve(stdout);
+      (err, stdout, stderr) => {
+        if (err) {
+          (err as Error & { stderr?: string }).stderr = stderr;
+          reject(err);
+        } else resolve(stdout);
       },
     );
   });
