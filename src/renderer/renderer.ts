@@ -408,8 +408,8 @@ function render(): void {
 
   renderCleanupOverlay(els.cleanupOverlay);
 
-  els.footLeft.textContent = `Showing ${visible.length} of ${rows.length} · grouped by primary`;
-  els.footRight.textContent = `last refresh ${new Date().toLocaleTimeString()} · no network traffic`;
+  els.footLeft.textContent = `Showing ${visible.length} of ${rows.length}`;
+  els.footRight.textContent = `last refresh ${new Date().toLocaleTimeString()}`;
 }
 
 async function checkGitStatus(): Promise<void> {
