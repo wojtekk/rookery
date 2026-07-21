@@ -251,7 +251,7 @@ function buildDuplicateIcon(
   const btn = el('button', 'row-dup-ico');
   btn.type = 'button';
   btn.innerHTML = iconSvg('layers-intersect'); // bundled static SVG (no user input) — safe
-  const tip = `This repository is also cloned elsewhere (this copy is under …/${fragment})`;
+  const tip = `This repository is also cloned elsewhere (this copy is under …/${fragment})\n\nClick to find all clones.`;
   btn.setAttribute('aria-label', tip);
   btn.setAttribute('data-tip', tip);
   btn.disabled = locked; // FR-006: blocked while a long operation runs — no colour change

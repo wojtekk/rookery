@@ -602,6 +602,12 @@ body {
 .row-dup-ico:disabled {
   cursor: not-allowed;
 }
+/* Two-line tooltip (notice + call-to-action). Fixed width avoids the icon's tiny box collapsing
+   shrink-to-fit sizing to one word per line (same fix as .row-warn-ico above). */
+.row-dup-ico[data-tip]:hover::after {
+  white-space: pre-line;
+  width: 260px;
+}
 .slug {
   font-family: var(--mono);
   font-size: 11.5px;
