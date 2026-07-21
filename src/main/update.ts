@@ -34,6 +34,9 @@ export const NON_INTERACTIVE_ENV: NodeJS.ProcessEnv = {
   ...process.env,
   GIT_TERMINAL_PROMPT: '0',
   GIT_SSH_COMMAND: 'ssh -oBatchMode=yes -oStrictHostKeyChecking=accept-new',
+  // ponytail: a repo-configured rebase.instructionFormat/hook could otherwise pop an editor mid-rebase and hang.
+  GIT_EDITOR: 'true',
+  GIT_SEQUENCE_EDITOR: 'true',
 };
 
 function expandTilde(p: string): string {
@@ -112,7 +115,24 @@ async function restoreStash(dir: string, stashed: boolean, opts: RunOpts): Promi
   }
 }
 
-/** fetch + classify (equal/ahead/behind/diverged) + ff-only merge. Never auto-merges (Principle III). */
+/** Rebases local commits onto @{u}; on conflict aborts and restores the exact prior state (Principle III). */
+async function rebaseOntoUpstream(dir: string, opts: RunOpts): Promise<UpdateOutcome> {
+  try {
+    await runGit(['-C', dir, 'rebase', '@{u}'], dir, opts);
+    return { result: 'updated' };
+  } catch (err) {
+    // ponytail: this catch also covers a spawn/family timeout killing the rebase mid-flight (FR-011) —
+    // either way, aborting clears any in-progress rebase before the outcome is reported.
+    try {
+      await runGit(['-C', dir, 'rebase', '--abort'], dir, opts);
+    } catch {
+      // best-effort; nothing more we can do if the abort itself fails
+    }
+    return { result: 'failed', reason: { category: 'rebase-conflict', detail: errorDetail(err) } };
+  }
+}
+
+/** fetch + classify (equal/ahead/behind/diverged) + ff-only merge or rebase. Never auto-merges (Principle III). */
 async function classifyAndMerge(dir: string, opts: RunOpts): Promise<UpdateOutcome> {
   const upstreamRef = (
     await runGit(['-C', dir, 'rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], dir, opts)
@@ -130,7 +150,7 @@ async function classifyAndMerge(dir: string, opts: RunOpts): Promise<UpdateOutco
   const [head, upstream] = (await runGit(['-C', dir, 'rev-parse', 'HEAD', '@{u}'], dir, opts)).trim().split('\n');
   if (head === upstream) return { result: 'already-current' };
   if (await isAncestor(dir, upstream!, head!, opts)) return { result: 'already-current' }; // upstream is an ancestor -> local ahead
-  if (!(await isAncestor(dir, head!, upstream!, opts))) return { result: 'failed', reason: { category: 'diverged' } }; // neither is an ancestor -> diverged
+  if (!(await isAncestor(dir, head!, upstream!, opts))) return rebaseOntoUpstream(dir, opts); // neither is an ancestor -> diverged: rebase local commits onto upstream
 
   await runGit(['-C', dir, 'merge', '--ff-only', '@{u}'], dir, opts);
   return { result: 'updated' };

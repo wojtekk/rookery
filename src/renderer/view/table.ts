@@ -41,6 +41,7 @@ const REASON_SENTENCE: Record<UpdateReasonCategory, string> = {
   'stash-failed': "Update blocked — local changes couldn't be safely stashed",
   'timed-out': 'Update blocked — timed out',
   'update-failed': 'Update blocked — failed unexpectedly',
+  'rebase-conflict': 'Update blocked — rebase hit a conflict; resolve it in your merge tool',
   unavailable: 'Update skipped — working tree unavailable',
   detached: 'Update skipped — not on a branch (detached HEAD)',
 };
