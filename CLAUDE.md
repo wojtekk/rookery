@@ -1,10 +1,39 @@
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at specs/017-duplicate-clone-indicator/plan.md
+at specs/018-relocate-search-header/plan.md
 <!-- SPECKIT END -->
 
-Active feature: **Duplicate-Clone Indicator**
+Active feature: **Relocate Search Icon Above the Table**
+(`specs/018-relocate-search-header/plan.md`) — moves the header search control
+(icon, expand-to-input, clear button — all from feature 016) out of the top
+title bar's `#search` slot and into `.fleet-head`, the row directly above the
+table, as its leftmost child, replacing the `<span id="fleetTitle">` node
+that displayed "Fleet — N repositories" (a count the footer's "Showing X of
+Y" text already carries). `index.html`'s `.fleet-head` now holds `#search`
+before `#filters`; `renderer.ts` drops its now-dangling `fleetTitle` element
+lookup and the `title` field it passed into `renderSummary`; `summary.ts`'s
+`SummaryElements` interface drops `title` entirely along with the
+`els.title.textContent` assignment, since there's no title element left to
+write to. `styles.css` gains `flex-wrap: wrap` plus an 8px `row-gap` on
+`.fleet-head` so the filter chips wrap to a second line when they and an
+expanded search box don't both fit on one line (2026-07-21 clarification),
+and drops the now-orphaned `.fleet-title` rule; the top `.bar`'s existing
+`.bar-spacer { flex: 1 }` absorbs the freed space for free, needing no edit.
+`view/search.ts`'s `renderSearch` and the feature-009 long-operation lockout
+are untouched — only the DOM position of the container they mount into
+changes. **Renderer-only**: no new IPC, main-process change, dependency, or
+persisted setting — the diff touches only `index.html`, `renderer.ts`,
+`view/summary.ts`, and `styles.css`. No new pure/branching logic was
+introduced (moving a DOM node and deleting a `textContent` assignment are not
+decision points, matching feature 017's precedent), so no new test file was
+required per the plan's Constitution Check — **implementation complete
+through T007 and T009**; build and all 122 tests pass unchanged. **T008 (the
+full `quickstart.md` walkthrough against `pnpm start`, scenarios A–M plus
+A2/B2) is still owed** — an agent cannot drive real mouse/hover/click/
+window-resize interaction against the Electron window from this environment.
+
+Prior feature: **Duplicate-Clone Indicator**
 (`specs/017-duplicate-clone-indicator/plan.md`) — replaces today's unexplained
 "…/parent-folder" `.frag` text (shown when two rows are clones of the same
 remote sharing a directory name, per the existing `collisionFragment` gate in

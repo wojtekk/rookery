@@ -239,15 +239,11 @@ body {
 }
 .fleet-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
   justify-content: space-between;
+  row-gap: 8px;
   margin-bottom: 12px;
-}
-.fleet-title {
-  font-size: 11px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--muted);
 }
 .counts {
   display: flex;

@@ -24,7 +24,6 @@ const SEG_CLASS: Record<RowState, string> = {
 };
 
 export interface SummaryElements {
-  title: HTMLElement;
   filters: HTMLElement;
   sumbar: HTMLElement;
 }
@@ -41,8 +40,6 @@ export function renderSummary(
   const counts: Record<RowState, number> = { clean: 0, dirty: 0, 'out-of-sync': 0, unavailable: 0 };
   for (const row of rows) counts[deriveRowState(row)] += 1;
   const total = rows.length;
-
-  els.title.textContent = `Fleet — ${total} ${total === 1 ? 'repository' : 'repositories'}`;
 
   els.filters.innerHTML = '';
   els.filters.appendChild(makeChip('all', total, activeFilter === 'all', () => onFilterChange('all'), undefined, locked));

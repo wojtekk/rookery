@@ -24,7 +24,6 @@ const api = window.repoDashboard;
 const els = {
   toolbar: document.getElementById('toolbar') as HTMLElement,
   search: document.getElementById('search') as HTMLElement,
-  fleetTitle: document.getElementById('fleetTitle') as HTMLElement,
   filters: document.getElementById('filters') as HTMLElement,
   sumbar: document.getElementById('sumbar') as HTMLElement,
   thead: document.getElementById('thead') as HTMLElement,
@@ -310,7 +309,7 @@ function render(): void {
   );
 
   renderSummary(
-    { title: els.fleetTitle, filters: els.filters, sumbar: els.sumbar },
+    { filters: els.filters, sumbar: els.sumbar },
     rows,
     stateFilter,
     (filter) => {
