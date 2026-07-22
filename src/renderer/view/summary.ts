@@ -1,7 +1,7 @@
 // Fleet composition bar + state-filter chips with counts (FR-029).
 
 import type { Row, RowState } from '../../shared/types';
-import { deriveRowState, isGone, type StateFilter } from './filter.js';
+import { deriveRowState, isGone, isLocalOnly, type StateFilter } from './filter.js';
 
 const STATES: RowState[] = ['clean', 'dirty', 'out-of-sync', 'unavailable'];
 const LABELS: Record<RowState, string> = {
@@ -36,6 +36,18 @@ function countGone(rows: Row[]): number {
     if (isGone(row)) n++;
     if (row.kind === 'repository') {
       for (const wt of row.worktrees) if (isGone(wt)) n++;
+    }
+  }
+  return n;
+}
+
+/** Mirrors countGone: 'local-only' also counts worktrees, since a worktree's own branch — not its primary's — is what has no upstream. */
+function countLocalOnly(rows: Row[]): number {
+  let n = 0;
+  for (const row of rows) {
+    if (isLocalOnly(row)) n++;
+    if (row.kind === 'repository') {
+      for (const wt of row.worktrees) if (isLocalOnly(wt)) n++;
     }
   }
   return n;
@@ -78,6 +90,17 @@ export function renderSummary(
   // same treatment as 'all'.
   els.filters.appendChild(
     makeChip('gone', countGone(rows), activeFilter === 'gone', () => onFilterChange('gone'), undefined, locked),
+  );
+  // 'local-only' is also not a RowState, for the same reason as 'gone' — no swatch, same treatment.
+  els.filters.appendChild(
+    makeChip(
+      'local-only',
+      countLocalOnly(rows),
+      activeFilter === 'local-only',
+      () => onFilterChange('local-only'),
+      undefined,
+      locked,
+    ),
   );
 
   els.sumbar.innerHTML = '';

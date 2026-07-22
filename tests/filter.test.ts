@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { deriveRowState, filterRows, isGone } from '../src/renderer/view/filter';
+import { deriveRowState, filterRows, isGone, isLocalOnly } from '../src/renderer/view/filter';
 import type { Remote, Row, WorkingTreeEntry } from '../src/shared/types';
 
 function entry(overrides: Partial<WorkingTreeEntry> = {}): WorkingTreeEntry {
@@ -84,6 +84,36 @@ test("filterRows: 'gone' surfaces a family when only a hidden worktree's branch 
   assert.deepEqual(
     result[0]!.worktrees.map((w) => w.directoryName),
     ['gone-wt'],
+  );
+});
+
+test('isLocalOnly: true only for an available, non-detached branch with no upstream configured', () => {
+  assert.equal(isLocalOnly(entry({ head: { detached: false, branch: 'wip', upstream: { tracking: 'local-only' } } })), true);
+  assert.equal(isLocalOnly(entry({ head: { detached: false, branch: 'main', upstream: { tracking: 'tracked', ahead: 0, behind: 0 } } })), false);
+  assert.equal(isLocalOnly(entry({ head: { detached: false, branch: 'wip', upstream: { tracking: 'gone' } } })), false);
+  assert.equal(isLocalOnly(entry({ head: { detached: true } })), false);
+  assert.equal(isLocalOnly(entry({ availability: 'unavailable' })), false);
+});
+
+test("filterRows: 'local-only' matches by upstream tracking, independent of RowState", () => {
+  const rows = [
+    repo('a', { head: { detached: false, branch: 'wip', upstream: { tracking: 'local-only' } } }),
+    repo('b', { head: { detached: false, branch: 'main', upstream: { tracking: 'tracked', ahead: 0, behind: 0 } } }),
+  ];
+  assert.deepEqual(filterRows(rows, 'local-only', true).map((r) => r.directoryName), ['a']);
+});
+
+test("filterRows: 'local-only' surfaces a family when only a hidden worktree's branch is local-only", () => {
+  const rows = [
+    repo('tracked-primary', { head: { detached: false, branch: 'main', upstream: { tracking: 'tracked', ahead: 0, behind: 0 } } }, [
+      entry({ directoryName: 'local-wt', fullPath: '/repos/local-wt', head: { detached: false, branch: 'wip', upstream: { tracking: 'local-only' } } }),
+    ]),
+  ];
+  const result = filterRows(rows, 'local-only', true) as Array<Row & { worktrees: WorkingTreeEntry[] }>;
+  assert.equal(result.length, 1);
+  assert.deepEqual(
+    result[0]!.worktrees.map((w) => w.directoryName),
+    ['local-wt'],
   );
 });
 
