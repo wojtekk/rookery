@@ -1,10 +1,32 @@
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at specs/025-rebase-worktrees/plan.md
+at specs/026-local-only-filter/plan.md
 <!-- SPECKIT END -->
 
-Active feature: **Rebase Worktrees onto the Default Branch**
+Active feature: **Local-Only Branch Filter**
+(`specs/026-local-only-filter/plan.md`) — adds an eighth filter chip, "local-only", alongside the
+existing All/Clean/Uncommitted/Out of sync/Unavailable/Failed/Gone chips, narrowing the table to
+working trees whose current branch has no upstream configured at all — a state the app already
+detects and tags (the branch cell's `local-only` tag) but until now had no matching filter.
+Mirrors the existing "gone" filter one-for-one in `src/renderer/view/filter.ts`: a new
+`isLocalOnly` predicate (same guard shape as `isGone`) and a `'local-only'` sibling on
+`StateFilter` — never a `RowState` member, for the same reason "gone" isn't (it already has its
+own non-colour branch tag, so folding it into the 5-colour edge palette would be redundant).
+`view/summary.ts` gets a `countLocalOnly` counting-worktrees-too helper (mirrors `countGone`) and
+one more `makeChip(...)` call appended after "gone". **Renderer-only**: no new IPC, main-process
+change, dependency, persisted setting, or HTML/CSS change — the chip is generated entirely into
+the existing `#filters` container and needs no swatch, exactly like "gone". The one clarification
+resolved during `/speckit-clarify` was the chip's exact label: `local-only`, matching the existing
+branch-tag text verbatim rather than the spaced "local only" phrasing of the original request.
+**Implementation complete through T005** — build and all 158 tests pass (155 prior + 3 new in
+`tests/filter.test.ts` mirroring the existing `isGone`/`'gone'`-filter coverage: the predicate's
+true/false cases, plain `filterRows` matching, and the hidden-worktree-surfaces-its-family case).
+**T006 (the full `quickstart.md` walkthrough against `pnpm start`, scenarios A–J) is still
+owed** — an agent cannot drive real mouse/click interaction against the Electron window from this
+environment.
+
+Prior feature: **Rebase Worktrees onto the Default Branch**
 (`specs/025-rebase-worktrees/plan.md`) — adds a header **Rebase worktrees** action that replays
 every linked worktree's branch onto its family's freshly-fetched `origin/<default>`, closing two
 gaps "Pull all" leaves: local-only feature-branch worktrees are silently skipped (no tracked

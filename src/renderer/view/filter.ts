@@ -4,15 +4,20 @@ import type { Remote, Row, RowState, WorkingTreeEntry } from '../../shared/types
 
 // 'failed' is a sibling of 'all', not a RowState member: it reflects the outcome of the last
 // "Pull all" attempt (an event), not git-derived state, so it never participates in
-// deriveRowState or any Record<RowState, ...> map (007 data-model.md). 'gone' is a second
-// sibling: it's git-derived (a real, persistent fact) but deliberately kept out of RowState too,
-// since folding it in would add a sixth row-edge colour — it's surfaced instead via the branch
-// cell's "gone" tag (honest, non-colour cue) and this filter, mirroring 'local-only'.
-export type StateFilter = RowState | 'all' | 'failed' | 'gone';
+// deriveRowState or any Record<RowState, ...> map (007 data-model.md). 'gone' and 'local-only'
+// are two more siblings: both are git-derived (real, persistent facts) but deliberately kept out
+// of RowState too, since folding them in would add more row-edge colours — each is surfaced
+// instead via its own branch-cell tag (honest, non-colour cue) plus this filter.
+export type StateFilter = RowState | 'all' | 'failed' | 'gone' | 'local-only';
 
 /** A tracked branch whose remote counterpart was deleted (commonly: the PR already merged). */
 export function isGone(entry: WorkingTreeEntry): boolean {
   return entry.availability === 'ok' && !entry.head.detached && entry.head.upstream.tracking === 'gone';
+}
+
+/** A branch with no upstream configured at all — never pushed (026 data-model.md). */
+export function isLocalOnly(entry: WorkingTreeEntry): boolean {
+  return entry.availability === 'ok' && !entry.head.detached && entry.head.upstream.tracking === 'local-only';
 }
 
 /** Pure function of (availability, local, head) — never stored (data-model.md). Dirty wins over out-of-sync (FR-028). */
@@ -31,6 +36,7 @@ function matches(entry: WorkingTreeEntry, stateFilter: StateFilter, failedPaths:
   if (stateFilter === 'all') return true;
   if (stateFilter === 'failed') return failedPaths.has(entry.fullPath);
   if (stateFilter === 'gone') return isGone(entry);
+  if (stateFilter === 'local-only') return isLocalOnly(entry);
   return deriveRowState(entry) === stateFilter;
 }
 
