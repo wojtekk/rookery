@@ -4,8 +4,16 @@ import type { Remote, Row, RowState, WorkingTreeEntry } from '../../shared/types
 
 // 'failed' is a sibling of 'all', not a RowState member: it reflects the outcome of the last
 // "Pull all" attempt (an event), not git-derived state, so it never participates in
-// deriveRowState or any Record<RowState, ...> map (007 data-model.md).
-export type StateFilter = RowState | 'all' | 'failed';
+// deriveRowState or any Record<RowState, ...> map (007 data-model.md). 'gone' is a second
+// sibling: it's git-derived (a real, persistent fact) but deliberately kept out of RowState too,
+// since folding it in would add a sixth row-edge colour — it's surfaced instead via the branch
+// cell's "gone" tag (honest, non-colour cue) and this filter, mirroring 'local-only'.
+export type StateFilter = RowState | 'all' | 'failed' | 'gone';
+
+/** A tracked branch whose remote counterpart was deleted (commonly: the PR already merged). */
+export function isGone(entry: WorkingTreeEntry): boolean {
+  return entry.availability === 'ok' && !entry.head.detached && entry.head.upstream.tracking === 'gone';
+}
 
 /** Pure function of (availability, local, head) — never stored (data-model.md). Dirty wins over out-of-sync (FR-028). */
 export function deriveRowState(entry: WorkingTreeEntry): RowState {
@@ -22,6 +30,7 @@ export function deriveRowState(entry: WorkingTreeEntry): RowState {
 function matches(entry: WorkingTreeEntry, stateFilter: StateFilter, failedPaths: ReadonlySet<string>): boolean {
   if (stateFilter === 'all') return true;
   if (stateFilter === 'failed') return failedPaths.has(entry.fullPath);
+  if (stateFilter === 'gone') return isGone(entry);
   return deriveRowState(entry) === stateFilter;
 }
 

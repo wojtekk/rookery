@@ -11,6 +11,7 @@ const api: RepoDashboardApi = {
     ipcRenderer.invoke('setSort', dimension, direction),
   setShowWorktrees: (show: boolean) => ipcRenderer.invoke('setShowWorktrees', show),
   setDefaultHost: (host: string) => ipcRenderer.invoke('setDefaultHost', host),
+  setRebaseReminderSuppressed: (value: boolean) => ipcRenderer.invoke('setRebaseReminderSuppressed', value),
   getGitStatus: () => ipcRenderer.invoke('getGitStatus'),
   pickDirectory: () => ipcRenderer.invoke('pickDirectory'),
   onScanProgress: (cb: (done: number, total: number) => void) => {
@@ -24,6 +25,8 @@ const api: RepoDashboardApi = {
   updateAll: () => ipcRenderer.invoke('updateAll'),
   scanCleanup: () => ipcRenderer.invoke('scanCleanup'),
   executeCleanup: (selection: CleanupSelection[]) => ipcRenderer.invoke('executeCleanup', selection),
+  rebaseWorktrees: () => ipcRenderer.invoke('rebaseWorktrees'),
+  confirmRebaseWorktrees: () => ipcRenderer.invoke('confirmRebaseWorktrees'),
 };
 
 contextBridge.exposeInMainWorld('repoDashboard', api);

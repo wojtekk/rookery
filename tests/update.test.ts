@@ -203,7 +203,10 @@ test('updateRepo: diverged (same-line conflict) + dirty → failed/rebase-confli
 
     assert.equal(result, 'failed');
     assert.equal(reason?.category, 'rebase-conflict');
-    assert.ok(reason?.detail && reason.detail.length > 0);
+    // git writes the actionable "CONFLICT (content): Merge conflict in <file>" line to stdout,
+    // not stderr — the tooltip detail must include it, not just stderr's generic hint text.
+    assert.match(reason?.detail ?? '', /CONFLICT/);
+    assert.match(reason?.detail ?? '', /tracked\.txt/);
     assert.equal(headSha(work), beforeHead); // INV-2: HEAD restored exactly
     assert.equal(execFileSync('git', ['-C', work, 'log', '--format=%H']).toString().trim(), beforeLog); // local commits unchanged
     assert.equal(fs.readFileSync(path.join(work, 'tracked.txt'), 'utf8'), 'local conflicting edit\n'); // restored, no conflict markers
@@ -339,4 +342,17 @@ test('skipReason: unavailable → unavailable, detached → detached, tracked/no
     collisionFragment: null,
   };
   assert.equal(skipReason(localOnly), undefined); // no tracked upstream → never warned (FR-005)
+
+  const goneUpstream: WorkingTreeEntry = {
+    availability: 'ok',
+    head: { detached: false, branch: 'jobs/pro-client', upstream: { tracking: 'gone' } },
+    local: 0,
+    lastChange: null,
+    directoryName: 'v',
+    fullPath: '~/v',
+    collisionFragment: null,
+  };
+  // Its remote branch was deleted (commonly: already merged) — @{u} won't resolve, so Pull-all
+  // must skip it with a clear reason instead of attempting a fetch/rebase that can't succeed.
+  assert.equal(skipReason(goneUpstream)?.category, 'upstream-gone');
 });

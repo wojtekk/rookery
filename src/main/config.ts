@@ -13,6 +13,7 @@ const DEFAULT_SETTINGS: Settings = {
   showWorktrees: true,
   defaultHost: 'github.com',
   actions: [],
+  rebaseReminderSuppressed: false,
 };
 
 /** Defense-in-depth for `setActions` (ipc-api.md): structurally valid, non-empty, within the limit. */
@@ -84,6 +85,11 @@ export function registerSettingsIpc(): void {
   ipcMain.handle('setDefaultHost', async (_e, host: string) => {
     const settings = await loadSettings();
     await saveSettings({ ...settings, defaultHost: host });
+  });
+
+  ipcMain.handle('setRebaseReminderSuppressed', async (_e, value: boolean) => {
+    const settings = await loadSettings();
+    await saveSettings({ ...settings, rebaseReminderSuppressed: value });
   });
 
   ipcMain.handle('getActions', async () => (await loadSettings()).actions);

@@ -27,6 +27,28 @@ test('parsePorcelainStatusV2: local-only branch (no upstream) omits ahead/behind
   assert.equal(local, 0);
 });
 
+// A configured-but-unreachable upstream (its remote branch was deleted — commonly, the PR already
+// merged) prints `branch.upstream` with NO `branch.ab` line, since git can't compute ahead/behind
+// without the ref. That's the only porcelain-v2 signal for "gone" (confirmed against `git
+// for-each-ref --format=%(upstream:track)`'s literal `[gone]` marker on a real repo).
+test('parsePorcelainStatusV2: upstream configured but its remote ref is gone (no branch.ab line)', () => {
+  const raw = ['# branch.oid abc123', '# branch.head jobs/pro-client', '# branch.upstream origin/jobs/pro-client'].join(
+    '\n',
+  );
+  const { head } = parsePorcelainStatusV2(raw);
+  assert.deepEqual(head, { detached: false, branch: 'jobs/pro-client', upstream: { tracking: 'gone' } });
+});
+
+// Regression guard for the above: a genuinely in-sync branch always prints `branch.ab +0 -0`
+// explicitly, so it must never be misclassified as 'gone'.
+test('parsePorcelainStatusV2: in-sync tracked branch (explicit +0 -0) is never misread as gone', () => {
+  const raw = ['# branch.oid abc123', '# branch.head main', '# branch.upstream origin/main', '# branch.ab +0 -0'].join(
+    '\n',
+  );
+  const { head } = parsePorcelainStatusV2(raw);
+  assert.deepEqual(head, { detached: false, branch: 'main', upstream: { tracking: 'tracked', ahead: 0, behind: 0 } });
+});
+
 test('parsePorcelainStatusV2: detached HEAD', () => {
   const raw = ['# branch.oid abc123', '# branch.head (detached)'].join('\n');
   const { head } = parsePorcelainStatusV2(raw);

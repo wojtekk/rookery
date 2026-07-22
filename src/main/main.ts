@@ -7,7 +7,7 @@ import { getGitVersion, probeRemoteUrl, runGit } from './git/probe';
 import { scanAll } from './scan';
 import { launchCommand } from './actions/launch';
 import { computeDeleteRisk } from './delete';
-import { updateAll } from './update';
+import { updateAll, rebaseWorktrees } from './update';
 import { scanCleanup, executeCleanup } from './cleanup';
 import type {
   AddDirectoryResult,
@@ -85,6 +85,24 @@ async function runAction(
   const action = settings.actions.find((a) => a.id === actionId);
   if (!action) return { ok: false, reason: 'Action not found' };
   return launchCommand(action.command, expandTilde(target.path), target.remoteUrl);
+}
+
+/** Native "do you really want to rewrite history" confirmation (contracts/rebase-engine.md).
+ *  Does not persist the checkbox itself — the renderer decides and calls setRebaseReminderSuppressed,
+ *  keeping the settings write in one place with the renderer's cached Settings. */
+async function confirmRebaseWorktrees(): Promise<{ proceed: boolean; suppress: boolean }> {
+  if (!mainWindow) return { proceed: false, suppress: false };
+  const { response, checkboxChecked } = await dialog.showMessageBox(mainWindow, {
+    type: 'warning',
+    message: 'Rebase worktrees?',
+    detail: 'This rewrites local history on every eligible worktree. Do not run it on branches shared with other people.',
+    buttons: ['Rebase worktrees', 'Cancel'],
+    defaultId: 0,
+    cancelId: 1,
+    checkboxLabel: 'Do not remind me again',
+    checkboxChecked: false,
+  });
+  return { proceed: response === 0, suppress: checkboxChecked };
 }
 
 async function pickDirectory(): Promise<string | null> {
@@ -198,6 +216,8 @@ function registerIpc(): void {
   );
   ipcMain.handle('deleteRow', (_e, target: DeleteTarget) => deleteRow(target));
   ipcMain.handle('updateAll', () => updateAll(lastSnapshot));
+  ipcMain.handle('rebaseWorktrees', () => rebaseWorktrees(lastSnapshot));
+  ipcMain.handle('confirmRebaseWorktrees', () => confirmRebaseWorktrees());
   ipcMain.handle('scanCleanup', () => scanCleanup(lastSnapshot));
   ipcMain.handle('executeCleanup', (_e, selection: CleanupSelection[]): Promise<CleanupOutcome[]> =>
     executeCleanup(selection),

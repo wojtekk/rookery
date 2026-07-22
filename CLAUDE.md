@@ -1,10 +1,56 @@
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at specs/024-settings-tabs/plan.md
+at specs/025-rebase-worktrees/plan.md
 <!-- SPECKIT END -->
 
-Active feature: **Relocate Search Icon Above the Table**
+Active feature: **Rebase Worktrees onto the Default Branch**
+(`specs/025-rebase-worktrees/plan.md`) — adds a header **Rebase worktrees** action that replays
+every linked worktree's branch onto its family's freshly-fetched `origin/<default>`, closing two
+gaps "Pull all" leaves: local-only feature-branch worktrees are silently skipped (no tracked
+upstream), and tracked worktrees only ever follow their own upstream, never `main`. Reuses
+feature 014's proven non-destructive rebase spine (autostash → `git rebase origin/<default>` →
+restore; abort + restore-to-exact-prior-state on the first conflict, never resolving it) inside
+`src/main/update.ts`'s new `rebaseWorktrees(rows)`, alongside three exported pure helpers
+(`resolveDefaultBranchName`, `rebaseCandidates`, `worktreeSkipReason`) for the eligibility/
+classification logic that needs no git call. Per family: resolve the default branch (primary's
+own checked-out branch, else `origin/HEAD`, else the family is unresolvable → every worktree
+`failed`/`default-branch-unknown`), one `fetch origin <default>` (failure → every worktree
+`failed`/`fetch-failed`), then each linked worktree in sequence (shared `refs/stash` forbids
+concurrent autostash) — `skipped`/`unavailable`, `skipped`/`detached`, `skipped` with no reason
+when already on the default branch, `already-current` when `origin/<default>` is already an
+ancestor of its HEAD, else autostash → rebase → restore. Orphan worktrees (no known primary) are
+`skipped`/`orphan-worktree` with zero git calls. Two new `UpdateReasonCategory` values
+(`default-branch-unknown`, `orphan-worktree`) get their own `REASON_SENTENCE` entries in
+`table.ts`; `rebaseReminderSuppressed` is a new persisted `Settings` boolean. A native
+`dialog.showMessageBox` confirmation (with a "do not remind me again" checkbox) warns that
+rebasing rewrites history before the first fetch/rebase of a run — cancelling is a total no-op;
+ticking the checkbox persists via a new `setRebaseReminderSuppressed` IPC call before proceeding.
+The reminder is re-enableable from a new **"Other"** tab in the Settings modal (widening feature
+024's Directories/Actions tab strip to three), reusing the Cleanup overlay's `.cleanup-row`/
+`.cleanup-checkbox`/`.cleanup-label` CSS classes verbatim for the toggle row — no new CSS needed
+for it. "Rebase worktrees" is a fourth long operation folded into the existing UI-lockout
+(mutually exclusive with Refresh/Pull all/Cleanup; disabled when no repository has a linked
+worktree, FR-021) and reuses feature 013's `failedPaths`/`warnings` surface, rebuilt fresh per
+run exactly like "Pull all" does. This required amending the constitution to **v4.1.0**:
+Principle III's non-interactive-rebase latitude is generalised from naming only "Pull-all" to
+any deliberate update action rebasing onto its own resolved target (Pull-all's tracked upstream,
+or this feature's fetched default branch) — no guarantee removed, every abort/restore/
+never-auto-merge rule carried over unchanged; Principle IV's long-operation enumeration gains
+"Rebase worktrees" as a fourth member. **Main + renderer, one new persisted setting, three new
+IPC methods** (`rebaseWorktrees`, `confirmRebaseWorktrees`, `setRebaseReminderSuppressed`) — no
+new runtime dependency. **Implementation complete through T018 and T020** — build and all 146
+tests pass (125 prior + 21 new in `tests/rebase-worktrees.test.ts`: 9 pure eligibility/
+default-branch/reason-classification tests mirroring `update-eligibility.test.ts`, and 12
+real-git-fixture tests covering every outcome path — local-only rebase, tracked-onto-default
+rebase, already-current, the on-default no-git-call skip, dirty autostash restore, conflict
+abort-and-restore, stash-pop collision, fetch failure, unresolvable default, orphan skip, and
+the primary-untouched / no-work-lost invariants across a mixed multi-worktree run). **T019 (the
+full `quickstart.md` walkthrough against `pnpm start`, scenarios A–N, including a real conflict
+path and a fetch-failure path) is still owed** — an agent cannot drive real mouse/click/dialog
+interaction against the Electron window from this environment.
+
+Prior feature: **Relocate Search Icon Above the Table**
 (`specs/018-relocate-search-header/plan.md`) — moves the header search control
 (icon, expand-to-input, clear button — all from feature 016) out of the top
 title bar's `#search` slot and into `.fleet-head`, the row directly above the
