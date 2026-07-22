@@ -1,14 +1,30 @@
 <!--
 Sync Impact Report
 ==================
-Version change: 3.0.0 → 4.0.0
-Rationale: Amend Principle III to reconcile with Feature 014
+Version change: 4.0.0 → 4.1.0
+Rationale: Amend Principles III and IV to reconcile with Feature 025
+(specs/025-rebase-worktrees/spec.md) — a new "Rebase worktrees" action replays each linked
+worktree's branch onto its repository's freshly-fetched default branch, using the identical
+non-interactive, abort-on-first-conflict, restore-to-exact-prior-state rebase spine Principle
+III already permitted, but names only "Pull-all" by name and only the tracked upstream as a
+target. Principle III's latitude is generalised from "Pull-all rebasing onto its tracked
+upstream" to "any deliberate update action rebasing onto its own resolved target" — Pull-all's
+tracked upstream, or Rebase worktrees' freshly-fetched default branch — with every existing
+guarantee (non-interactive, conflict aborts and restores exactly, no auto-merge, `--autostash`
+mandatory) carried over unchanged and unweakened. Principle IV's long-operation enumeration
+gains "Rebase worktrees" as a fourth member alongside Refresh/Pull all/Cleanup, so the same
+mutual-exclusion and dim/lockout rules apply to it. No guarantee is removed or narrowed —
+this only recognises a second action performing the same already-permitted class of rebase —
+so this is classified MINOR (expanded guidance). See
+specs/025-rebase-worktrees/{spec.md,plan.md,research.md} (Decision 1, Decision 5).
+
+Prior change (3.0.0 → 4.0.0): Amend Principle III to reconcile with Feature 014
 (specs/014-pull-all-rebase/spec.md) — "Pull all" now brings a *diverged* repository up to
 date by a non-interactive rebase of local commits onto the upstream, matching the user's
-proven `git pull --autostash` workflow (their global `pull.rebase=true`). This is a
+proven `git pull --autostash` workflow (their global `pull.rebase=true`). This was a
 backward-incompatible redefinition (MAJOR): Principle III previously *guaranteed* that a
 diverged repository is left untouched and marked `failed`, never rewritten. That guarantee
-is removed. The principle's core is preserved intact: the app still MUST NOT resolve
+was removed. The principle's core was preserved intact: the app still MUST NOT resolve
 conflicts, MUST NOT perform interactive merge/rebase resolution, and MUST NOT create a
 merge commit on the user's behalf. The added latitude is narrow and reversible — the rebase
 is non-interactive, aborts on the first conflict, restores the repository to its exact prior
@@ -104,6 +120,20 @@ Added sections:
   - Governance
 
 Removed sections: none (template placeholders replaced).
+
+Amendments (4.1.0):
+  - Principle III: the non-interactive-rebase latitude is generalised from "Pull-all rebasing
+    onto its tracked upstream" to any deliberate update action rebasing onto its own resolved
+    target — naming Pull-all's tracked upstream and Rebase worktrees' freshly-fetched default
+    branch as the two current examples. Every existing guarantee (non-interactive,
+    abort-and-restore-exactly on the first conflict, no auto-merge, mandatory `--autostash`)
+    is carried over unchanged. Expanded guidance, no guarantee removed → MINOR. See
+    specs/025-rebase-worktrees/spec.md (FR-002–FR-010).
+  - Principle IV: the long-operation enumeration gains a fourth member, "Rebase worktrees",
+    alongside Refresh/Pull all/Cleanup — it participates in the same at-most-one-at-a-time
+    mutual exclusion, the same table/sort-header-only dim, and the same
+    no-colour-change-elsewhere rule as the other three. MINOR (materially expanded guidance).
+    See specs/025-rebase-worktrees/spec.md (FR-013).
 
 Amendments (4.0.0):
   - Principle III: the guarantee that a diverged repository is left untouched and marked
@@ -210,14 +240,17 @@ Amendments (1.1.0):
   - Technical Constraints: refresh is on explicit demand; "refresh interval" setting
     replaced with "sort order" as the persisted example.
 
-Templates reviewed (re-verified for 4.0.0):
+Templates reviewed (re-verified for 4.1.0):
   ✅ .specify/templates/plan-template.md — "Constitution Check" gate is generic
      (reads from this file); no hardcoded principle names to update.
   ✅ .specify/templates/spec-template.md — no constitution-specific references.
   ✅ .specify/templates/tasks-template.md — no constitution-specific references.
   ✅ .specify/templates/checklist-template.md — no constitution-specific references.
   ✅ specs/014-pull-all-rebase/{plan.md,research.md,contracts/update-engine.md} — already
-     written against this amendment (Principle III rebase latitude); no rework needed.
+     written against the 4.0.0 amendment (Principle III rebase latitude); no rework needed.
+  ✅ specs/025-rebase-worktrees/{plan.md,research.md,contracts/rebase-engine.md} — already
+     written against this amendment (generalised Principle III latitude, Principle IV's
+     fourth long operation); no rework needed.
 
 Follow-up TODOs:
   ⚠ specs/009-block-ui-during-operations/{plan.md,research.md,data-model.md,
@@ -268,17 +301,19 @@ worktree, a deleted repository with unpushed work has no git-native recovery pat
 
 The application MUST NOT attempt to resolve merge conflicts or perform interactive
 merge/rebase resolution, and MUST NOT create a merge commit on the user's behalf
-(no auto-merge). Pull-all MUST use `--autostash`. Pull-all MAY bring a diverged
-repository up to date by a **non-interactive rebase** of its local commits onto the
-upstream, but ONLY when that rebase completes without conflict; on the first
-conflict it MUST abort the rebase and restore the repository to its exact prior
-state (no rebase left in progress, uncommitted work preserved). When a pull cannot
+(no auto-merge). Pull-all MUST use `--autostash`. A deliberate update action (e.g.
+Pull-all, Rebase worktrees) MAY bring a repository or worktree up to date by a
+**non-interactive rebase** of its local commits onto its own resolved target —
+Pull-all's tracked upstream, or Rebase worktrees' freshly-fetched default branch —
+but ONLY when that rebase completes without conflict; on the first conflict it
+MUST abort the rebase and restore the working tree to its exact prior state (no
+rebase left in progress, uncommitted work preserved). When such an update cannot
 complete cleanly by fast-forward or by such a conflict-free rebase, the operation
-MUST stop for that repository, leave the repo in a state the user can inspect, mark
-it as failed (light red), and direct the user to a dedicated merge tool. The same
-fail-loud rule applies to push: a push rejected as non-fast-forward (remote has
-diverged) MUST stop and surface the failure, never force-push or attempt to
-auto-merge/rebase on the user's behalf.
+MUST stop for that repository or worktree, leave it in a state the user can
+inspect, mark it as failed (light red), and direct the user to a dedicated merge
+tool. The same fail-loud rule applies to push: a push rejected as non-fast-forward
+(remote has diverged) MUST stop and surface the failure, never force-push or
+attempt to auto-merge/rebase on the user's behalf.
 
 Rationale: Conflict resolution is a high-stakes, context-dependent task. A
 management dashboard that guesses will corrupt work. A non-interactive rebase that
@@ -303,7 +338,7 @@ surface at minimum its remote slug (its primary identifier), directory name, cur
 branch with tracking status (remote-tracked or local-only), and its local/ahead/behind
 change counts; the full path MUST be available on demand (e.g., tooltip), except while a
 long operation is running (below). Long or blocking operations MUST NOT freeze the UI.
-While a long operation (Refresh, Pull all, Cleanup) runs, the application MUST: (a)
+While a long operation (Refresh, Pull all, Cleanup, Rebase worktrees) runs, the application MUST: (a)
 prevent the *other* long-operation triggers from starting a second operation — at most
 one long operation runs at a time — with each of those triggers showing its own busy or
 non-interactive state; (b) block every other control that operates on repositories or
@@ -392,4 +427,4 @@ credential handling, or network activity MUST be reviewed against Principles I�
 before merge. Deviations MUST be justified in the plan's Complexity Tracking or
 rejected.
 
-**Version**: 4.0.0 | **Ratified**: 2026-07-16 | **Last Amended**: 2026-07-21
+**Version**: 4.1.0 | **Ratified**: 2026-07-16 | **Last Amended**: 2026-07-22

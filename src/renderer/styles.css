@@ -680,6 +680,20 @@ body {
   padding: 1px 6px;
   color: var(--muted);
 }
+/* Reuses --dirty (blue) — the text label itself stays the primary cue (Principle IV), colour is
+   only reinforcement. */
+.tag.local {
+  border-color: var(--dirty);
+  background: rgba(76, 141, 255, 0.16);
+  color: var(--dirty);
+}
+/* Reuses --fail (red, already this app's "needs attention" colour via the warn icon) — a gone
+   upstream is a stale, actionable tracking state, not merely informational like local-only. */
+.tag.gone {
+  border-color: var(--fail-edge);
+  background: rgba(229, 72, 77, 0.16);
+  color: var(--fail);
+}
 
 /* numeric cells */
 .num {
@@ -961,10 +975,11 @@ body {
   gap: 16px;
 }
 
-/* refresh / pull-all / cleanup button busy state (FR-012/FR-014, FR-009, FR-011) */
+/* refresh / pull-all / cleanup / rebase button busy state (FR-012/FR-014, FR-009, FR-011, FR-013) */
 .ctrl.refresh.busy,
 .ctrl.pull-all.busy,
-.ctrl.cleanup.busy {
+.ctrl.cleanup.busy,
+.ctrl.rebase.busy {
   cursor: default;
   opacity: 0.7;
 }

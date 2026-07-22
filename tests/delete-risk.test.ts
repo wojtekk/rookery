@@ -105,6 +105,30 @@ test('computeDeleteRisk: local-only branch (no upstream) on a repo WITH a remote
   });
 });
 
+// Real-world trigger for this feature: a PR merges and its remote branch is deleted, leaving the
+// local branch's configured upstream unreachable — `git fetch -p` prunes the stale remote-tracking
+// ref exactly as a routine fetch/"Cleanup" run would.
+test('computeDeleteRisk: gone upstream (remote branch deleted) alone → at risk with exactly one reason', async () => {
+  await withTmp(async (root) => {
+    const bare = path.join(root, 'bare.git');
+    execFileSync('git', ['init', '-q', '--bare', bare]);
+    const work = path.join(root, 'work');
+    initRepo(work);
+    git(work, ['remote', 'add', 'origin', bare]);
+    git(work, ['checkout', '-q', '-b', 'feature']);
+    git(work, ['push', '-q', '-u', 'origin', 'feature']);
+    git(work, ['push', '-q', 'origin', '--delete', 'feature']);
+    git(work, ['fetch', '-q', '-p', 'origin']);
+
+    const result = await computeDeleteRisk(work, true);
+
+    assert.deepEqual(result, {
+      atRisk: true,
+      reasons: ['remote branch was deleted — its history is no longer recoverable from origin'],
+    });
+  });
+});
+
 test('computeDeleteRisk: dirty AND no-remote together → at risk with both reasons in one result', async () => {
   await withTmp(async (root) => {
     const work = path.join(root, 'work');

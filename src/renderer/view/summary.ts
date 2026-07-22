@@ -1,7 +1,7 @@
 // Fleet composition bar + state-filter chips with counts (FR-029).
 
 import type { Row, RowState } from '../../shared/types';
-import { deriveRowState, type StateFilter } from './filter.js';
+import { deriveRowState, isGone, type StateFilter } from './filter.js';
 
 const STATES: RowState[] = ['clean', 'dirty', 'out-of-sync', 'unavailable'];
 const LABELS: Record<RowState, string> = {
@@ -26,6 +26,19 @@ const SEG_CLASS: Record<RowState, string> = {
 export interface SummaryElements {
   filters: HTMLElement;
   sumbar: HTMLElement;
+}
+
+/** Unlike the RowState tally above (primaries only), 'gone' counts worktrees too — a worktree's
+ *  own branch, not its primary's, is what goes stale (mirrors failedPaths' broader scope). */
+function countGone(rows: Row[]): number {
+  let n = 0;
+  for (const row of rows) {
+    if (isGone(row)) n++;
+    if (row.kind === 'repository') {
+      for (const wt of row.worktrees) if (isGone(wt)) n++;
+    }
+  }
+  return n;
 }
 
 /** Counts reflect the full fleet regardless of the active filter, so chips stay meaningful to switch between. */
@@ -60,6 +73,11 @@ export function renderSummary(
   // a failed repo usually overlaps an existing state, so counting it there would double-count rows.
   els.filters.appendChild(
     makeChip('failed', failedPaths.size, activeFilter === 'failed', () => onFilterChange('failed'), 'sw-fail', locked),
+  );
+  // 'gone' is also not a RowState (kept out of the 5-colour edge palette, filter.ts) — no swatch,
+  // same treatment as 'all'.
+  els.filters.appendChild(
+    makeChip('gone', countGone(rows), activeFilter === 'gone', () => onFilterChange('gone'), undefined, locked),
   );
 
   els.sumbar.innerHTML = '';

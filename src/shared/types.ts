@@ -7,7 +7,8 @@ export type Head =
       branch: string;
       upstream:
         | { tracking: 'local-only' }
-        | { tracking: 'tracked'; ahead: number; behind: number };
+        | { tracking: 'tracked'; ahead: number; behind: number }
+        | { tracking: 'gone' };
     };
 
 export type WorkingTree =
@@ -64,6 +65,7 @@ export interface Settings {
   showWorktrees: boolean;
   defaultHost: string;
   actions: Action[];
+  rebaseReminderSuppressed: boolean;
 }
 
 export type GitStatus =
@@ -99,7 +101,10 @@ export type UpdateReasonCategory =
   | 'update-failed'
   | 'rebase-conflict'
   | 'unavailable'
-  | 'detached';
+  | 'detached'
+  | 'upstream-gone'
+  | 'default-branch-unknown'
+  | 'orphan-worktree';
 
 export interface UpdateReason {
   category: UpdateReasonCategory;
@@ -160,4 +165,7 @@ export interface RepoDashboardApi {
   updateAll(): Promise<RepoUpdateOutcome[]>;
   scanCleanup(): Promise<CleanupCandidate[]>;
   executeCleanup(selection: CleanupSelection[]): Promise<CleanupOutcome[]>;
+  rebaseWorktrees(): Promise<RepoUpdateOutcome[]>;
+  confirmRebaseWorktrees(): Promise<{ proceed: boolean; suppress: boolean }>;
+  setRebaseReminderSuppressed(value: boolean): Promise<void>;
 }

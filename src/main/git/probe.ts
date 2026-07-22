@@ -28,7 +28,10 @@ export function runGit(
       { cwd, timeout: opts?.timeoutMs ?? SPAWN_TIMEOUT_MS, killSignal: 'SIGKILL', env: opts?.env ?? process.env },
       (err, stdout, stderr) => {
         if (err) {
-          (err as Error & { stderr?: string }).stderr = stderr;
+          // git writes its most useful conflict detail (e.g. "CONFLICT (content): Merge conflict
+          // in <file>") to stdout, not stderr — callers building an error detail need both.
+          (err as Error & { stderr?: string; stdout?: string }).stderr = stderr;
+          (err as Error & { stderr?: string; stdout?: string }).stdout = stdout;
           reject(err);
         } else resolve(stdout);
       },

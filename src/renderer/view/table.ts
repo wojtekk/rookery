@@ -45,6 +45,9 @@ const REASON_SENTENCE: Record<UpdateReasonCategory, string> = {
   'rebase-conflict': 'Update blocked — rebase hit a conflict; resolve it in your merge tool',
   unavailable: 'Update skipped — working tree unavailable',
   detached: 'Update skipped — not on a branch (detached HEAD)',
+  'upstream-gone': 'Update skipped — the remote branch was deleted (likely already merged)',
+  'default-branch-unknown': "Rebase skipped — couldn't determine the default branch",
+  'orphan-worktree': 'Rebase skipped — worktree has no known parent repository',
 };
 
 function warnTooltip(reason: UpdateReason): string {
@@ -137,6 +140,10 @@ function fillBranchCell(
     const tag = el('span', 'tag local');
     tag.textContent = 'local-only';
     track.appendChild(tag);
+  } else if (head.upstream.tracking === 'gone') {
+    const tag = el('span', 'tag gone');
+    tag.textContent = 'gone';
+    track.appendChild(tag);
   } else {
     track.appendChild(document.createTextNode('origin/'));
     const up = el('span', 'up');
@@ -175,7 +182,7 @@ function buildAbCell(entry: WorkingTreeEntry): HTMLElement {
     return cell;
   }
   const { head } = entry;
-  if (head.detached || head.upstream.tracking === 'local-only') {
+  if (head.detached || head.upstream.tracking === 'local-only' || head.upstream.tracking === 'gone') {
     const metric = el('span', 'metric m-none');
     metric.textContent = 'n/a';
     cell.appendChild(metric);

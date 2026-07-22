@@ -18,6 +18,8 @@ export interface SettingsModalHandlers {
   onSetActions: (actions: Action[]) => Promise<void>;
   /** Actions changed — reload settings and re-render (no repo re-scan needed). */
   onActionsChanged: () => void;
+  /** Persist the rebase-confirmation reminder toggle (025 FR-020). */
+  onSetRebaseReminderSuppressed: (value: boolean) => void;
 }
 
 let isOpen = false;
@@ -28,7 +30,7 @@ let formIcon: string = ICON_IDS[0]!;
 
 // Which settings tab is showing (renderer-only, not persisted); reset to the default only on a
 // fresh window open, so a data-driven re-render while the modal is open stays on the same tab.
-let activeTab: 'directories' | 'actions' = 'directories';
+let activeTab: 'directories' | 'actions' | 'other' = 'directories';
 
 export function openSettingsModal(): void {
   isOpen = true;
@@ -216,6 +218,7 @@ export function renderSettingsModal(
   container: HTMLElement,
   directories: string[],
   actions: Action[],
+  rebaseReminderSuppressed: boolean,
   handlers: SettingsModalHandlers,
 ): void {
   container.innerHTML = '';
@@ -269,8 +272,16 @@ export function renderSettingsModal(
   actionsTabBtn.setAttribute('aria-controls', 'tab-actions');
   actionsTabBtn.textContent = 'Actions';
 
+  const otherTabBtn = el('button', 'tab-btn');
+  otherTabBtn.type = 'button';
+  otherTabBtn.id = 'tab-btn-other';
+  otherTabBtn.setAttribute('role', 'tab');
+  otherTabBtn.setAttribute('aria-controls', 'tab-other');
+  otherTabBtn.textContent = 'Other';
+
   tabStrip.appendChild(dirTabBtn);
   tabStrip.appendChild(actionsTabBtn);
+  tabStrip.appendChild(otherTabBtn);
   modalBody.appendChild(tabStrip);
 
   // --- Observed directories section ---
@@ -330,20 +341,45 @@ export function renderSettingsModal(
   actionsSection.id = 'tab-actions';
   actionsSection.setAttribute('role', 'tabpanel');
   actionsSection.setAttribute('aria-labelledby', 'tab-btn-actions');
+
+  // --- Other section (025 FR-020): re-enable the rebase confirmation after it's been suppressed ---
+  const otherSection = el('div', 'settings-section');
+  otherSection.id = 'tab-other';
+  otherSection.setAttribute('role', 'tabpanel');
+  otherSection.setAttribute('aria-labelledby', 'tab-btn-other');
+  const otherH = el('h2');
+  otherH.textContent = 'Other';
+  otherSection.appendChild(otherH);
+
+  const reminderRow = el('label', 'cleanup-row');
+  const reminderCb = el('input', 'cleanup-checkbox');
+  reminderCb.type = 'checkbox';
+  reminderCb.checked = !rebaseReminderSuppressed;
+  reminderCb.addEventListener('change', () => handlers.onSetRebaseReminderSuppressed(!reminderCb.checked));
+  const reminderLabel = el('span', 'cleanup-label');
+  reminderLabel.textContent = 'Warn before rebasing worktrees';
+  reminderRow.appendChild(reminderCb);
+  reminderRow.appendChild(reminderLabel);
+  otherSection.appendChild(reminderRow);
+  modalBody.appendChild(otherSection);
   modal.appendChild(modalBody);
 
   // --- Tab switching (FR-005, FR-006, FR-012 — no re-render, so in-progress form state survives) ---
-  const setTab = (tab: 'directories' | 'actions'): void => {
+  const setTab = (tab: 'directories' | 'actions' | 'other'): void => {
     activeTab = tab;
     dirSection.hidden = tab !== 'directories';
     actionsSection.hidden = tab !== 'actions';
+    otherSection.hidden = tab !== 'other';
     dirTabBtn.classList.toggle('active', tab === 'directories');
     dirTabBtn.setAttribute('aria-selected', String(tab === 'directories'));
     actionsTabBtn.classList.toggle('active', tab === 'actions');
     actionsTabBtn.setAttribute('aria-selected', String(tab === 'actions'));
+    otherTabBtn.classList.toggle('active', tab === 'other');
+    otherTabBtn.setAttribute('aria-selected', String(tab === 'other'));
   };
   dirTabBtn.addEventListener('click', () => setTab('directories'));
   actionsTabBtn.addEventListener('click', () => setTab('actions'));
+  otherTabBtn.addEventListener('click', () => setTab('other'));
   setTab(activeTab);
 
   // --- Footer ---

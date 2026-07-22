@@ -46,6 +46,7 @@ let settings: Settings = {
   showWorktrees: true,
   defaultHost: 'github.com',
   actions: [],
+  rebaseReminderSuppressed: false,
 };
 
 /** Transient, non-blocking notice (bottom-right toast); auto-dismisses. Used for launch failures (FR-007). */
@@ -75,8 +76,9 @@ let searchFoldTimer: ReturnType<typeof setTimeout> | undefined;
 let refreshing = false;
 let updating = false; // re-entry guard + toolbar spinner for "Pull all" (FR-009)
 let cleaning = false; // re-entry guard + toolbar spinner for "Cleanup"; mutually exclusive with updating (FR-012)
-let failedPaths = new Set<string>(); // paths with result 'failed' from the last "Pull all" run (FR-014)
-let warnings = new Map<string, UpdateReason>(); // warned-set reasons from the last "Pull all" run (013 FR-001/004), in-memory only (FR-011)
+let rebasing = false; // re-entry guard + toolbar spinner for "Rebase worktrees"; a fourth mutually-exclusive long op (025 FR-013)
+let failedPaths = new Set<string>(); // paths with result 'failed' from the last mutating run (FR-014)
+let warnings = new Map<string, UpdateReason>(); // warned-set reasons from the last mutating run (013 FR-001/004), in-memory only (FR-011)
 let loadState: LoadState = 'loading';
 let busyShowTimer: ReturnType<typeof setTimeout> | undefined;
 let busyLoaderShownAt: number | null = null;
@@ -166,7 +168,7 @@ function pruneFixedFailedPaths(): void {
 }
 
 async function doRefresh(opts: { pruneFixedFailed?: boolean } = {}): Promise<void> {
-  if (refreshing || updating || cleaning) return; // FR-002/SC-005: at most one long operation at a time
+  if (refreshing || updating || cleaning || rebasing) return; // FR-002/SC-005: at most one long operation at a time
   refreshing = true;
   beginBusyLock('Refreshing…');
   render();
@@ -182,7 +184,7 @@ async function doRefresh(opts: { pruneFixedFailed?: boolean } = {}): Promise<voi
 }
 
 async function doUpdateAll(): Promise<void> {
-  if (updating || cleaning) return; // FR-012: mutually exclusive with Cleanup
+  if (updating || cleaning || rebasing) return; // FR-012: mutually exclusive with the other long ops
   updating = true;
   failedPaths = new Set();
   warnings = new Map();
@@ -210,7 +212,7 @@ async function doUpdateAll(): Promise<void> {
 
 /** Two-phase flow (contracts/ipc-cleanup.md): read-only scan -> review overlay -> remove selected. */
 async function doCleanup(): Promise<void> {
-  if (cleaning || updating) return; // FR-012: mutually exclusive with Pull all
+  if (cleaning || updating || rebasing) return; // FR-012: mutually exclusive with the other long ops
   cleaning = true;
   beginBusyLock('Cleaning up…');
   render();
@@ -249,16 +251,55 @@ async function doCleanup(): Promise<void> {
   }
 }
 
+/** Confirm-then-run flow (contracts/rebase-engine.md, 025 FR-016/017/018). Cancelling performs no
+ *  fetch, no rebase, and no state change; ticking "do not remind me again" persists before running. */
+async function doRebaseWorktrees(): Promise<void> {
+  if (rebasing || updating || cleaning || refreshing) return; // FR-013: at most one long operation at a time
+  if (!settings.rebaseReminderSuppressed) {
+    const { proceed, suppress } = await api.confirmRebaseWorktrees();
+    if (!proceed) return;
+    if (suppress) {
+      await api.setRebaseReminderSuppressed(true);
+      settings.rebaseReminderSuppressed = true;
+    }
+  }
+
+  rebasing = true;
+  failedPaths = new Set(); // FR-009a: the latest mutating run's failures/warnings replace the prior run's
+  warnings = new Map();
+  beginBusyLock('Rebasing…');
+  render();
+
+  try {
+    const outcomes = await api.rebaseWorktrees();
+    failedPaths = new Set(outcomes.filter((o) => o.result === 'failed').map((o) => o.path));
+    warnings = new Map(outcomes.filter((o) => o.reason).map((o) => [o.path, o.reason!]));
+
+    const counts: Record<UpdateResult, number> = { updated: 0, 'already-current': 0, skipped: 0, failed: 0 };
+    for (const o of outcomes) counts[o.result]++;
+    showNotice(
+      `Rebased ${counts.updated} · ${counts['already-current']} already current · ${counts.skipped} skipped · ${counts.failed} failed`,
+    );
+  } finally {
+    // FR-013: release on resolve, failure result, or reject/throw — never leave the UI locked.
+    rebasing = false;
+    endBusyLock();
+    render();
+  }
+  await doRefresh();
+}
+
 function render(): void {
   // FR-001/015/016: drives filter-chip and row-action locking below (toolbar derives its own copy).
-  const busy = refreshing || updating || cleaning;
+  const busy = refreshing || updating || cleaning || rebasing;
   const hasDirectories = settings.observedDirectories.length > 0;
+  const hasWorktrees = rows.some((r) => r.kind === 'repository' && r.worktrees.length > 0); // FR-021
   const screen = decideStartupScreen(loadState, hasDirectories);
   const isInitialLoading = screen === 'loader';
 
   renderToolbar(
     els.toolbar,
-    { showWorktrees: settings.showWorktrees, refreshing, updating, cleaning, hasRepos: rows.length > 0 },
+    { showWorktrees: settings.showWorktrees, refreshing, updating, cleaning, rebasing, hasRepos: rows.length > 0, hasWorktrees },
     {
       onToggleWorktrees: (show) => {
         settings.showWorktrees = show;
@@ -268,6 +309,7 @@ function render(): void {
       onRefresh: () => void doRefresh({ pruneFixedFailed: true }),
       onUpdateAll: () => void doUpdateAll(),
       onCleanup: () => void doCleanup(),
+      onRebaseWorktrees: () => void doRebaseWorktrees(),
       onOpenSettings: () => {
         openSettingsModal();
         render();
@@ -384,7 +426,7 @@ function render(): void {
     );
   }
 
-  renderSettingsModal(els.settingsModal, settings.observedDirectories, settings.actions, {
+  renderSettingsModal(els.settingsModal, settings.observedDirectories, settings.actions, settings.rebaseReminderSuppressed, {
     onAdd: (path) => api.addObservedDirectory(path),
     onRemove: (path) => api.removeObservedDirectory(path),
     onPick: () => api.pickDirectory(),
@@ -396,6 +438,11 @@ function render(): void {
     },
     onClose: () => render(),
     onSetActions: (actions) => api.setActions(actions),
+    onSetRebaseReminderSuppressed: (value) => {
+      settings.rebaseReminderSuppressed = value;
+      void api.setRebaseReminderSuppressed(value);
+      render();
+    },
     onActionsChanged: () => {
       // Actions changed — reload settings and re-render so the ⋮ menus and the list update (FR-008).
       // No repo re-scan needed (the row data is unchanged).
@@ -423,7 +470,7 @@ async function checkGitStatus(): Promise<void> {
 }
 
 wireSortHeaders(els.thead, (dimension) => {
-  if (refreshing || updating || cleaning) return; // FR-014: sort is blocked while a long operation runs
+  if (refreshing || updating || cleaning || rebasing) return; // FR-014: sort is blocked while a long operation runs
   if (settings.sortDimension === dimension) {
     settings.sortDirection = settings.sortDirection === 'asc' ? 'desc' : 'asc';
   } else {

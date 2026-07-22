@@ -35,6 +35,8 @@ export async function computeDeleteRisk(path: string, hasRemote: boolean): Promi
   if (hasRemote && !head.detached) {
     if (head.upstream.tracking === 'local-only') {
       reasons.push('branch has no upstream / has never been pushed');
+    } else if (head.upstream.tracking === 'gone') {
+      reasons.push('remote branch was deleted — its history is no longer recoverable from origin');
     } else if (head.upstream.ahead > 0) {
       reasons.push('has commits that have not been pushed');
     }

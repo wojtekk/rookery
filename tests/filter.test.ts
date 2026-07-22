@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { deriveRowState, filterRows } from '../src/renderer/view/filter';
+import { deriveRowState, filterRows, isGone } from '../src/renderer/view/filter';
 import type { Remote, Row, WorkingTreeEntry } from '../src/shared/types';
 
 function entry(overrides: Partial<WorkingTreeEntry> = {}): WorkingTreeEntry {
@@ -48,6 +48,43 @@ test('deriveRowState: clean when in sync with no local changes', () => {
   const localOnly = entry({ local: 0, head: { detached: false, branch: 'main', upstream: { tracking: 'local-only' } } });
   assert.equal(deriveRowState(inSync), 'clean');
   assert.equal(deriveRowState(localOnly), 'clean');
+});
+
+// 'gone' is deliberately NOT a RowState (filter.ts) — a gone-upstream branch keeps whatever
+// clean/dirty/out-of-sync colour its other properties dictate; 'gone' surfaces only via the
+// branch cell's tag and this sibling filter, never by hijacking the row edge colour.
+test('deriveRowState: gone upstream, otherwise clean → still clean (gone is not a RowState)', () => {
+  const goneButClean = entry({ local: 0, head: { detached: false, branch: 'wip', upstream: { tracking: 'gone' } } });
+  assert.equal(deriveRowState(goneButClean), 'clean');
+});
+
+test('isGone: true only for an available, non-detached branch whose upstream tracking is gone', () => {
+  assert.equal(isGone(entry({ head: { detached: false, branch: 'wip', upstream: { tracking: 'gone' } } })), true);
+  assert.equal(isGone(entry({ head: { detached: false, branch: 'main', upstream: { tracking: 'tracked', ahead: 0, behind: 0 } } })), false);
+  assert.equal(isGone(entry({ head: { detached: true } })), false);
+  assert.equal(isGone(entry({ availability: 'unavailable' })), false);
+});
+
+test("filterRows: 'gone' matches by upstream tracking, independent of RowState", () => {
+  const rows = [
+    repo('a', { head: { detached: false, branch: 'wip', upstream: { tracking: 'gone' } } }),
+    repo('b', { head: { detached: false, branch: 'main', upstream: { tracking: 'tracked', ahead: 0, behind: 0 } } }),
+  ];
+  assert.deepEqual(filterRows(rows, 'gone', true).map((r) => r.directoryName), ['a']);
+});
+
+test("filterRows: 'gone' surfaces a family when only a hidden worktree's branch is gone", () => {
+  const rows = [
+    repo('clean-primary', {}, [
+      entry({ directoryName: 'gone-wt', fullPath: '/repos/gone-wt', head: { detached: false, branch: 'wip', upstream: { tracking: 'gone' } } }),
+    ]),
+  ];
+  const result = filterRows(rows, 'gone', true) as Array<Row & { worktrees: WorkingTreeEntry[] }>;
+  assert.equal(result.length, 1);
+  assert.deepEqual(
+    result[0]!.worktrees.map((w) => w.directoryName),
+    ['gone-wt'],
+  );
 });
 
 test('filterRows: "all" keeps every row and every worktree when shown', () => {
