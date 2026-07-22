@@ -26,8 +26,13 @@ let isOpen = false;
 let editingId: string | null = null;
 let formIcon: string = ICON_IDS[0]!;
 
+// Which settings tab is showing (renderer-only, not persisted); reset to the default only on a
+// fresh window open, so a data-driven re-render while the modal is open stays on the same tab.
+let activeTab: 'directories' | 'actions' = 'directories';
+
 export function openSettingsModal(): void {
   isOpen = true;
+  activeTab = 'directories';
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string): HTMLElementTagNameMap[K] {
@@ -36,7 +41,7 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string): 
   return node;
 }
 
-function renderActionsSection(modal: HTMLElement, actions: Action[], handlers: SettingsModalHandlers): void {
+function renderActionsSection(modal: HTMLElement, actions: Action[], handlers: SettingsModalHandlers): HTMLElement {
   // Every real re-render is a fresh start: leave any in-progress edit mode (it's transient DOM state).
   editingId = null;
   formIcon = ICON_IDS[0]!;
@@ -195,6 +200,7 @@ function renderActionsSection(modal: HTMLElement, actions: Action[], handlers: S
   }
 
   refreshSubmitState();
+  return section;
 }
 
 function selectIcon(picker: HTMLElement, id: string): void {
@@ -244,8 +250,34 @@ export function renderSettingsModal(
 
   const modalBody = el('div', 'modal-body');
 
+  // --- Tab strip (FR-001, FR-011) ---
+  const tabStrip = el('div', 'tab-strip');
+  tabStrip.setAttribute('role', 'tablist');
+  tabStrip.setAttribute('aria-label', 'Settings sections');
+
+  const dirTabBtn = el('button', 'tab-btn');
+  dirTabBtn.type = 'button';
+  dirTabBtn.id = 'tab-btn-directories';
+  dirTabBtn.setAttribute('role', 'tab');
+  dirTabBtn.setAttribute('aria-controls', 'tab-directories');
+  dirTabBtn.textContent = 'Directories';
+
+  const actionsTabBtn = el('button', 'tab-btn');
+  actionsTabBtn.type = 'button';
+  actionsTabBtn.id = 'tab-btn-actions';
+  actionsTabBtn.setAttribute('role', 'tab');
+  actionsTabBtn.setAttribute('aria-controls', 'tab-actions');
+  actionsTabBtn.textContent = 'Actions';
+
+  tabStrip.appendChild(dirTabBtn);
+  tabStrip.appendChild(actionsTabBtn);
+  modalBody.appendChild(tabStrip);
+
   // --- Observed directories section ---
   const dirSection = el('div', 'settings-section');
+  dirSection.id = 'tab-directories';
+  dirSection.setAttribute('role', 'tabpanel');
+  dirSection.setAttribute('aria-labelledby', 'tab-btn-directories');
   const dirH = el('h2');
   dirH.textContent = 'Observed directories';
   dirSection.appendChild(dirH);
@@ -294,8 +326,25 @@ export function renderSettingsModal(
   modalBody.appendChild(dirSection);
 
   // --- Actions section ---
-  renderActionsSection(modalBody, actions, handlers);
+  const actionsSection = renderActionsSection(modalBody, actions, handlers);
+  actionsSection.id = 'tab-actions';
+  actionsSection.setAttribute('role', 'tabpanel');
+  actionsSection.setAttribute('aria-labelledby', 'tab-btn-actions');
   modal.appendChild(modalBody);
+
+  // --- Tab switching (FR-005, FR-006, FR-012 — no re-render, so in-progress form state survives) ---
+  const setTab = (tab: 'directories' | 'actions'): void => {
+    activeTab = tab;
+    dirSection.hidden = tab !== 'directories';
+    actionsSection.hidden = tab !== 'actions';
+    dirTabBtn.classList.toggle('active', tab === 'directories');
+    dirTabBtn.setAttribute('aria-selected', String(tab === 'directories'));
+    actionsTabBtn.classList.toggle('active', tab === 'actions');
+    actionsTabBtn.setAttribute('aria-selected', String(tab === 'actions'));
+  };
+  dirTabBtn.addEventListener('click', () => setTab('directories'));
+  actionsTabBtn.addEventListener('click', () => setTab('actions'));
+  setTab(activeTab);
 
   // --- Footer ---
   const foot = el('div', 'modal-foot');
