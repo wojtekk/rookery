@@ -66,7 +66,32 @@ export interface Settings {
   defaultHost: string;
   actions: Action[];
   rebaseReminderSuppressed: boolean;
+  lastCloneDirectory: string;
+  // Owner/org logins hidden from Clone's search results (e.g. an archive org nobody clones from).
+  excludedCloneOwners: string[];
 }
+
+// Clone (027 data-model.md §1): one discoverable remote repository the user can access, produced
+// by parseGhRepoList from `gh api user/repos` JSONL. Both URL forms come straight from the REST
+// payload — the app never synthesizes a URL.
+export interface RemoteRepoSummary {
+  host: string;
+  owner: string;
+  name: string;
+  sshUrl: string;
+  httpsUrl: string;
+}
+
+// Return of listCloneableRepos (027 data-model.md §2). A discriminated union like the file's other
+// multi-state shapes (GitStatus, DeleteOutcome, …): the success arm carries repos + unavailableHosts
+// (a host down while >=1 other succeeded, FR-013); the failure arm carries only a human reason —
+// "no host could be queried at all" (gh not found or every host failed, FR-012).
+export type CloneableReposResult =
+  | { searchAvailable: true; repos: RemoteRepoSummary[]; unavailableHosts: string[] }
+  | { searchAvailable: false; reason: string };
+
+// Result of one cloneRepository attempt (027 data-model.md §3) — mirrors RunActionResult.
+export type CloneOutcome = { ok: true } | { ok: false; reason: string };
 
 export type GitStatus =
   | { available: true; version: string }
@@ -168,4 +193,9 @@ export interface RepoDashboardApi {
   rebaseWorktrees(): Promise<RepoUpdateOutcome[]>;
   confirmRebaseWorktrees(): Promise<{ proceed: boolean; suppress: boolean }>;
   setRebaseReminderSuppressed(value: boolean): Promise<void>;
+  listCloneableRepos(forceRefresh?: boolean): Promise<CloneableReposResult>;
+  cloneRepository(url: string, destination: string): Promise<CloneOutcome>;
+  setLastCloneDirectory(dir: string): Promise<void>;
+  setExcludedCloneOwners(owners: string[]): Promise<void>;
+  isCloneDestinationOccupied(destination: string): Promise<boolean>;
 }

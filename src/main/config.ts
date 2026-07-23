@@ -14,6 +14,8 @@ const DEFAULT_SETTINGS: Settings = {
   defaultHost: 'github.com',
   actions: [],
   rebaseReminderSuppressed: false,
+  lastCloneDirectory: '',
+  excludedCloneOwners: [],
 };
 
 /** Defense-in-depth for `setActions` (ipc-api.md): structurally valid, non-empty, within the limit. */
@@ -90,6 +92,19 @@ export function registerSettingsIpc(): void {
   ipcMain.handle('setRebaseReminderSuppressed', async (_e, value: boolean) => {
     const settings = await loadSettings();
     await saveSettings({ ...settings, rebaseReminderSuppressed: value });
+  });
+
+  ipcMain.handle('setLastCloneDirectory', async (_e, dir: string) => {
+    const settings = await loadSettings();
+    await saveSettings({ ...settings, lastCloneDirectory: dir });
+  });
+
+  ipcMain.handle('setExcludedCloneOwners', async (_e, owners: string[]) => {
+    if (!Array.isArray(owners) || !owners.every((o) => typeof o === 'string')) {
+      throw new Error('Invalid excluded owners list');
+    }
+    const settings = await loadSettings();
+    await saveSettings({ ...settings, excludedCloneOwners: owners });
   });
 
   ipcMain.handle('getActions', async () => (await loadSettings()).actions);

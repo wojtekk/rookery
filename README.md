@@ -67,6 +67,17 @@ into the command text — so repository values can't be interpreted as commands
 (Constitution v1.4.0). See
 [`specs/002-custom-action-launchers/`](specs/002-custom-action-launchers/).
 
+### Clone (feature 027)
+
+The header **Clone** action opens a dialog to clone a remote repository onto disk.
+Search autocompletes across every repository you can access — discovered via the
+optional system **`gh` CLI** (using its own existing authentication; the app never
+handles a token) — or you can paste an HTTPS/SSH URL directly, which always works
+even without `gh` installed. Pick a destination from your watched directories or
+browse to a new one; on success the new repo's parent directory starts being
+watched automatically so it shows up right away. See
+[`specs/027-clone-repository/`](specs/027-clone-repository/).
+
 ## Top-level architecture
 
 Standard Electron three-context split, plus a `shared/` module for the types

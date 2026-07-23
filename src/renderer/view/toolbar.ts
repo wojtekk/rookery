@@ -6,6 +6,7 @@ export interface ToolbarState {
   updating: boolean;
   cleaning: boolean;
   rebasing: boolean;
+  cloning: boolean;
   hasRepos: boolean;
   hasWorktrees: boolean;
 }
@@ -16,6 +17,7 @@ export interface ToolbarHandlers {
   onUpdateAll: () => void;
   onCleanup: () => void;
   onRebaseWorktrees: () => void;
+  onClone: () => void;
   onOpenSettings: () => void;
 }
 
@@ -33,7 +35,7 @@ export function renderToolbar(container: HTMLElement, state: ToolbarState, handl
   container.innerHTML = '';
 
   // FR-011/FR-012: a running long operation blocks every control below, not just the other two buttons.
-  const busy = state.refreshing || state.updating || state.cleaning || state.rebasing;
+  const busy = state.refreshing || state.updating || state.cleaning || state.rebasing || state.cloning;
 
   const toggle = document.createElement('div');
   toggle.className = `ctrl toggle${state.showWorktrees ? ' on' : ''}${busy ? ' disabled' : ''}`;
@@ -49,8 +51,8 @@ export function renderToolbar(container: HTMLElement, state: ToolbarState, handl
   container.appendChild(toggle);
 
   const refreshBtn = document.createElement('div');
-  // FR-001/009: blocked (not busy) while Pull all, Cleanup, or Rebase worktrees runs.
-  const refreshLocked = !state.refreshing && (state.updating || state.cleaning || state.rebasing);
+  // FR-001/009: blocked (not busy) while Pull all, Cleanup, Rebase worktrees, or Clone runs.
+  const refreshLocked = !state.refreshing && (state.updating || state.cleaning || state.rebasing || state.cloning);
   refreshBtn.className = `ctrl refresh${state.refreshing ? ' busy' : ''}${refreshLocked ? ' disabled' : ''}`;
   refreshBtn.tabIndex = 0;
   refreshBtn.setAttribute('role', 'button');
@@ -66,7 +68,8 @@ export function renderToolbar(container: HTMLElement, state: ToolbarState, handl
 
   const updateBtn = document.createElement('div');
   // FR-007: disabled with nothing to act on; FR-001/009: mutually exclusive with the other long ops.
-  const updateLocked = !state.updating && (state.refreshing || state.cleaning || state.rebasing || !state.hasRepos);
+  const updateLocked =
+    !state.updating && (state.refreshing || state.cleaning || state.rebasing || state.cloning || !state.hasRepos);
   updateBtn.className = `ctrl pull-all${state.updating ? ' busy' : ''}${updateLocked ? ' disabled' : ''}`;
   updateBtn.tabIndex = 0;
   updateBtn.setAttribute('role', 'button');
@@ -77,12 +80,13 @@ export function renderToolbar(container: HTMLElement, state: ToolbarState, handl
   updateSpin.textContent = '⇅';
   updateBtn.appendChild(updateSpin);
   updateBtn.appendChild(document.createTextNode(' Pull all'));
-  if (!state.updating && !state.cleaning && !state.refreshing && !state.rebasing && state.hasRepos) wireActivate(updateBtn, handlers.onUpdateAll);
+  if (!updateLocked && !state.updating) wireActivate(updateBtn, handlers.onUpdateAll);
   container.appendChild(updateBtn);
 
   const cleanupBtn = document.createElement('div');
   // FR-007: disabled with nothing to act on; FR-001/009: mutually exclusive with the other long ops.
-  const cleanupLocked = !state.cleaning && (state.refreshing || state.updating || state.rebasing || !state.hasRepos);
+  const cleanupLocked =
+    !state.cleaning && (state.refreshing || state.updating || state.rebasing || state.cloning || !state.hasRepos);
   cleanupBtn.className = `ctrl cleanup${state.cleaning ? ' busy' : ''}${cleanupLocked ? ' disabled' : ''}`;
   cleanupBtn.tabIndex = 0;
   cleanupBtn.setAttribute('role', 'button');
@@ -93,12 +97,13 @@ export function renderToolbar(container: HTMLElement, state: ToolbarState, handl
   cleanupSpin.textContent = '⌫';
   cleanupBtn.appendChild(cleanupSpin);
   cleanupBtn.appendChild(document.createTextNode(' Cleanup'));
-  if (!state.cleaning && !state.updating && !state.refreshing && !state.rebasing && state.hasRepos) wireActivate(cleanupBtn, handlers.onCleanup);
+  if (!cleanupLocked && !state.cleaning) wireActivate(cleanupBtn, handlers.onCleanup);
   container.appendChild(cleanupBtn);
 
   const rebaseBtn = document.createElement('div');
   // FR-021: disabled with no linked worktrees; FR-013: mutually exclusive with the other long ops.
-  const rebaseLocked = !state.rebasing && (state.refreshing || state.updating || state.cleaning || !state.hasWorktrees);
+  const rebaseLocked =
+    !state.rebasing && (state.refreshing || state.updating || state.cleaning || state.cloning || !state.hasWorktrees);
   rebaseBtn.className = `ctrl rebase${state.rebasing ? ' busy' : ''}${rebaseLocked ? ' disabled' : ''}`;
   rebaseBtn.tabIndex = 0;
   rebaseBtn.setAttribute('role', 'button');
@@ -109,10 +114,25 @@ export function renderToolbar(container: HTMLElement, state: ToolbarState, handl
   rebaseSpin.textContent = '⤴';
   rebaseBtn.appendChild(rebaseSpin);
   rebaseBtn.appendChild(document.createTextNode(' Rebase worktrees'));
-  if (!state.rebasing && !state.refreshing && !state.updating && !state.cleaning && state.hasWorktrees) {
-    wireActivate(rebaseBtn, handlers.onRebaseWorktrees);
-  }
+  if (!rebaseLocked && !state.rebasing) wireActivate(rebaseBtn, handlers.onRebaseWorktrees);
   container.appendChild(rebaseBtn);
+
+  const cloneBtn = document.createElement('div');
+  // FR-008: mutually exclusive with the other long ops; no hasRepos gate — cloning the first
+  // repo into an empty dashboard is exactly what this button is for.
+  const cloneLocked = !state.cloning && (state.refreshing || state.updating || state.cleaning || state.rebasing);
+  cloneBtn.className = `ctrl clone${state.cloning ? ' busy' : ''}${cloneLocked ? ' disabled' : ''}`;
+  cloneBtn.tabIndex = 0;
+  cloneBtn.setAttribute('role', 'button');
+  cloneBtn.setAttribute('aria-busy', String(state.cloning));
+  cloneBtn.setAttribute('aria-disabled', String(cloneLocked));
+  const cloneSpin = document.createElement('span');
+  cloneSpin.className = 'spin-icon';
+  cloneSpin.textContent = '⎘';
+  cloneBtn.appendChild(cloneSpin);
+  cloneBtn.appendChild(document.createTextNode(' Clone'));
+  if (!cloneLocked && !state.cloning) wireActivate(cloneBtn, handlers.onClone);
+  container.appendChild(cloneBtn);
 
   const settingsBtn = document.createElement('div');
   settingsBtn.className = `ctrl${busy ? ' disabled' : ''}`;
