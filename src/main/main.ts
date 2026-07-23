@@ -9,10 +9,14 @@ import { launchCommand } from './actions/launch';
 import { computeDeleteRisk } from './delete';
 import { updateAll, rebaseWorktrees } from './update';
 import { scanCleanup, executeCleanup } from './cleanup';
+import { cloneRepository, isDestinationOccupied, cloneParentToObserve } from './clone';
+import { listCloneableRepos, filterExcludedOwners } from './clone-discovery';
 import type {
   AddDirectoryResult,
   CleanupOutcome,
   CleanupSelection,
+  CloneableReposResult,
+  CloneOutcome,
   DeleteOutcome,
   DeleteTarget,
   Row,
@@ -103,6 +107,29 @@ async function confirmRebaseWorktrees(): Promise<{ proceed: boolean; suppress: b
     checkboxChecked: false,
   });
   return { proceed: response === 0, suppress: checkboxChecked };
+}
+
+/** Applies the user's owner exclusion list (Settings) on top of the raw discovery result, at read
+ *  time rather than at fetch time — so editing the list takes effect immediately without a fresh
+ *  `gh` call. */
+async function doListCloneableRepos(forceRefresh?: boolean): Promise<CloneableReposResult> {
+  const result = await listCloneableRepos(forceRefresh);
+  const settings = await loadSettings();
+  return filterExcludedOwners(result, settings.excludedCloneOwners);
+}
+
+/** On success, adds the destination's parent to observedDirectories (data-model.md §6) — that's
+ *  what makes the new repo discoverable under scan.ts's one-level-deep scan. */
+async function doCloneRepository(url: string, destination: string): Promise<CloneOutcome> {
+  const outcome = await cloneRepository(url, destination);
+  if (outcome.ok) {
+    const settings = await loadSettings();
+    const parent = cloneParentToObserve(destination, settings.observedDirectories);
+    if (parent !== null) {
+      await saveSettings({ ...settings, observedDirectories: [...settings.observedDirectories, parent] });
+    }
+  }
+  return outcome;
 }
 
 async function pickDirectory(): Promise<string | null> {
@@ -222,6 +249,9 @@ function registerIpc(): void {
   ipcMain.handle('executeCleanup', (_e, selection: CleanupSelection[]): Promise<CleanupOutcome[]> =>
     executeCleanup(selection),
   );
+  ipcMain.handle('listCloneableRepos', (_e, forceRefresh?: boolean) => doListCloneableRepos(forceRefresh));
+  ipcMain.handle('cloneRepository', (_e, url: string, destination: string) => doCloneRepository(url, destination));
+  ipcMain.handle('isCloneDestinationOccupied', (_e, destination: string) => isDestinationOccupied(destination));
 }
 
 app.whenReady().then(() => {

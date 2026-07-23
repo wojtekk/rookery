@@ -1,8 +1,28 @@
 <!--
 Sync Impact Report
 ==================
-Version change: 4.0.0 → 4.1.0
-Rationale: Amend Principles III and IV to reconcile with Feature 025
+Version change: 4.1.0 → 5.0.0
+Rationale: Amend Principles V, IV, and II to reconcile with Feature 027
+(specs/027-clone-repository/spec.md) — a new "Clone" action clones a remote repository onto
+disk, with autocomplete over the repositories the user can access. Discovering that set
+(1,000+ repos across the user's configured hosts) requires the app to enumerate them from
+GitHub, which it does by shelling out to the user's already-authenticated system `gh` CLI —
+new app-initiated outbound activity. Principle V previously stated the app "MUST NOT ... make
+network calls of its own; the only outbound activity permitted is git talking to its configured
+remotes and opening user-invoked external targets." That hard guarantee is NARROWED: the app
+MAY now additionally invoke the system `gh` CLI for read-only repository discovery, using the
+user's existing `gh` authentication, never storing or handling a token. Narrowing a Principle
+guarantee is backward-incompatible → MAJOR, mirroring the 4.0.0 precedent (which removed
+Principle III's "diverged repo left untouched" guarantee). The clone itself needs no new
+latitude — `git clone` is already "git talking to its configured remotes." Principle IV's
+long-operation enumeration gains "Clone" as a fifth member (same mutual-exclusion, table/
+sort-header-only dim, no-colour-change-elsewhere rules); Principle II's mutating-operation list
+names "clone" (an additive mutation — it creates a new working tree and adds an observed
+directory, never deletes/overwrites, so it does not reach the repository-deletion confirmation
+tier). No new runtime dependency is introduced (the `gh` CLI is a system tool, delegated exactly
+as `git` is). See specs/027-clone-repository/{spec.md,plan.md,research.md} (research §1–§2).
+
+Prior change (4.0.0 → 4.1.0): Amend Principles III and IV to reconcile with Feature 025
 (specs/025-rebase-worktrees/spec.md) — a new "Rebase worktrees" action replays each linked
 worktree's branch onto its repository's freshly-fetched default branch, using the identical
 non-interactive, abort-on-first-conflict, restore-to-exact-prior-state rebase spine Principle
@@ -120,6 +140,25 @@ Added sections:
   - Governance
 
 Removed sections: none (template placeholders replaced).
+
+Amendments (5.0.0):
+  - Principle V: the guarantee that the app "MUST NOT ... make network calls of its own"
+    (outbound activity limited to git-to-remotes and launch targets) is NARROWED. The app MAY
+    now additionally invoke the system `gh` CLI for read-only repository discovery, using the
+    user's existing `gh` authentication and never storing or handling a token. Narrowing a
+    Principle guarantee is backward-incompatible → MAJOR. The clone action itself adds no new
+    latitude (`git clone` is already permitted git-to-remote activity). No new runtime
+    dependency is added — `gh` is a system tool delegated exactly as `git` is (Principle I).
+    See specs/027-clone-repository/spec.md (FR-002, FR-014).
+  - Principle IV: the long-operation enumeration gains a fifth member, "Clone", alongside
+    Refresh/Pull all/Cleanup/Rebase worktrees — same at-most-one-at-a-time mutual exclusion,
+    same table/sort-header-only dim, same no-colour-change-elsewhere rule. See
+    specs/027-clone-repository/spec.md (FR-008).
+  - Principle II: the mutating-operation list names "clone". Clone is an additive mutation (it
+    creates a new working tree on disk and appends an observed directory); it never deletes or
+    overwrites, so it does not reach the repository-deletion confirmation tier. It remains a
+    deliberate, explicit action, never on a timer. See specs/027-clone-repository/spec.md
+    (FR-007, FR-009, FR-010).
 
 Amendments (4.1.0):
   - Principle III: the non-interactive-rebase latitude is generalised from "Pull-all rebasing
@@ -281,10 +320,16 @@ on the command line. Shelling out keeps behavior identical to the terminal.
 Background and on-demand activity (startup scan, manual refresh, fetch) MUST be
 read-only and MUST NOT alter working trees, branches, history, or the filesystem.
 Every mutating operation — pull, push, branch deletion, branch cleanup, worktree
-removal, pull-all, repository deletion — MUST be triggered by a deliberate user
-action, never on a timer. Bulk and irreversible actions (branch cleanup, deleting
-multiple items) MUST be presented one item at a time or require explicit per-item
-confirmation.
+removal, pull-all, repository deletion, repository clone — MUST be triggered by a
+deliberate user action, never on a timer. Bulk and irreversible actions (branch
+cleanup, deleting multiple items) MUST be presented one item at a time or require
+explicit per-item confirmation.
+
+Repository clone is an additive mutation: it creates a new working tree on disk (and
+may begin observing its parent directory) but never deletes or overwrites existing
+work — an existing non-empty destination MUST be refused, not merged into. It
+therefore requires a deliberate action but not the named-confirmation tier reserved
+for deletion.
 
 Repository deletion is a distinct, higher-severity tier: it removes the directory
 from disk, not just a git ref, and can destroy uncommitted or unpushed work. It
@@ -338,7 +383,7 @@ surface at minimum its remote slug (its primary identifier), directory name, cur
 branch with tracking status (remote-tracked or local-only), and its local/ahead/behind
 change counts; the full path MUST be available on demand (e.g., tooltip), except while a
 long operation is running (below). Long or blocking operations MUST NOT freeze the UI.
-While a long operation (Refresh, Pull all, Cleanup, Rebase worktrees) runs, the application MUST: (a)
+While a long operation (Refresh, Pull all, Cleanup, Rebase worktrees, Clone) runs, the application MUST: (a)
 prevent the *other* long-operation triggers from starting a second operation — at most
 one long operation runs at a time — with each of those triggers showing its own busy or
 non-interactive state; (b) block every other control that operates on repositories or
@@ -367,16 +412,22 @@ accessible.
 ### V. Local-Only, Minimal Footprint
 
 The application MUST run entirely on the user's machine. It MUST NOT send
-telemetry or make network calls of its own; the only outbound activity permitted
-is git talking to its configured remotes and opening user-invoked external targets.
-External targets are user-configured launch commands — the app ships GitHub (in a
-browser), IntelliJ, VS Code, Finder, and the terminal as seeded, editable defaults
-— which the app launches (never embeds) and runs only on an explicit per-row user
-action, never on a timer. Repository-derived values passed to these commands (the
-row's path and remote URL) MUST be substituted as intact arguments, never spliced
-into command text, so repository data can never be interpreted as executable
-command text. New runtime dependencies MUST be justified against reuse of the
-platform, the system git, or a few lines of code (YAGNI).
+telemetry or make HTTP/API calls of its own. Permitted outbound activity is limited
+to: (1) git talking to its configured remotes; (2) opening user-invoked external
+targets; and (3) the system `gh` CLI performing read-only repository discovery on the
+user's explicit action (e.g., opening the Clone dialog), using the user's existing
+`gh` authentication. In all three cases the app delegates to a system tool that holds
+its own credentials — the app itself MUST NOT store, read, prompt for, or transmit any
+token or password. `gh` is used exactly as `git` is: a system-native subprocess, never
+bundled, never a source of credential handling. External targets are user-configured
+launch commands — the app ships GitHub (in a browser), IntelliJ, VS Code, Finder, and
+the terminal as seeded, editable defaults — which the app launches (never embeds) and
+runs only on an explicit per-row user action, never on a timer. Repository-derived
+values passed to launch or clone commands (the row's path, remote URL, and a clone
+URL/destination) MUST be substituted as intact arguments, never spliced into command
+text, so repository data can never be interpreted as executable command text. New
+runtime dependencies MUST be justified against reuse of the platform, the system git
+or gh, or a few lines of code (YAGNI).
 
 Rationale: This is a personal local tool. Keeping it offline-by-design removes an
 entire class of privacy and security concerns and keeps the surface small enough
@@ -395,6 +446,10 @@ to trust.
 - Git interaction is via subprocess to the system `git`; parse porcelain/plumbing
   output rather than screen-scraping human-formatted output where a stable format
   exists.
+- Repository discovery for clone autocomplete is via subprocess to the system `gh`
+  CLI (`gh auth status`, `gh api`), requesting machine-readable JSON; it is read-only,
+  uses the user's existing `gh` auth, and degrades gracefully to manual-URL clone when
+  `gh` is unavailable.
 - No persistent data store beyond local user configuration (observed directories,
   sort order, and equivalent settings).
 
@@ -402,8 +457,8 @@ to trust.
 
 - Changes MUST be surgical and match existing style; no unrequested refactors of
   adjacent code.
-- Any code that mutates repository state (pull, push, delete, remove) MUST leave at
-  least one runnable check that fails if the guard or safety behavior breaks.
+- Any code that mutates repository state (pull, push, delete, remove, clone) MUST
+  leave at least one runnable check that fails if the guard or safety behavior breaks.
 - A change that touches a mutating operation MUST be manually exercised against a
   real repository (including at least one conflict/failure path) before it is
   considered done.
@@ -427,4 +482,4 @@ credential handling, or network activity MUST be reviewed against Principles I�
 before merge. Deviations MUST be justified in the plan's Complexity Tracking or
 rejected.
 
-**Version**: 4.1.0 | **Ratified**: 2026-07-16 | **Last Amended**: 2026-07-22
+**Version**: 5.0.0 | **Ratified**: 2026-07-16 | **Last Amended**: 2026-07-23

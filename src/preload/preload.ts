@@ -27,6 +27,11 @@ const api: RepoDashboardApi = {
   executeCleanup: (selection: CleanupSelection[]) => ipcRenderer.invoke('executeCleanup', selection),
   rebaseWorktrees: () => ipcRenderer.invoke('rebaseWorktrees'),
   confirmRebaseWorktrees: () => ipcRenderer.invoke('confirmRebaseWorktrees'),
+  listCloneableRepos: (forceRefresh?: boolean) => ipcRenderer.invoke('listCloneableRepos', forceRefresh),
+  cloneRepository: (url: string, destination: string) => ipcRenderer.invoke('cloneRepository', url, destination),
+  setLastCloneDirectory: (dir: string) => ipcRenderer.invoke('setLastCloneDirectory', dir),
+  setExcludedCloneOwners: (owners: string[]) => ipcRenderer.invoke('setExcludedCloneOwners', owners),
+  isCloneDestinationOccupied: (destination: string) => ipcRenderer.invoke('isCloneDestinationOccupied', destination),
 };
 
 contextBridge.exposeInMainWorld('repoDashboard', api);

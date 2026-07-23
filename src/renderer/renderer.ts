@@ -11,6 +11,7 @@ import { renderSearch } from './view/search.js';
 import { renderEmptyState } from './view/empty.js';
 import { renderSettingsModal, openSettingsModal } from './view/settings.js';
 import { openCleanupOverlay, renderCleanupOverlay } from './view/cleanup.js';
+import { openCloneModal, renderCloneModal, closeCloneModal, setCloneDiscoveryResult, setCloneError, setCloneLoading, clearCloneError } from './view/clone.js';
 import { decideStartupScreen, remainingMinVisibleMs, LOADER_SHOW_DELAY_MS, type LoadState } from './view/loadstate.js';
 import { setLoaderVisible } from './view/loader.js';
 
@@ -33,6 +34,7 @@ const els = {
   gitWarning: document.getElementById('gitWarning') as HTMLElement,
   settingsModal: document.getElementById('settingsModal') as HTMLElement,
   cleanupOverlay: document.getElementById('cleanupOverlay') as HTMLElement,
+  cloneModal: document.getElementById('cloneModal') as HTMLElement,
   tableLoader: document.getElementById('tableLoader') as HTMLElement,
   footLeft: document.getElementById('footLeft') as HTMLElement,
   footRight: document.getElementById('footRight') as HTMLElement,
@@ -47,6 +49,8 @@ let settings: Settings = {
   defaultHost: 'github.com',
   actions: [],
   rebaseReminderSuppressed: false,
+  lastCloneDirectory: '',
+  excludedCloneOwners: [],
 };
 
 /** Transient, non-blocking notice (bottom-right toast); auto-dismisses. Used for launch failures (FR-007). */
@@ -77,6 +81,7 @@ let refreshing = false;
 let updating = false; // re-entry guard + toolbar spinner for "Pull all" (FR-009)
 let cleaning = false; // re-entry guard + toolbar spinner for "Cleanup"; mutually exclusive with updating (FR-012)
 let rebasing = false; // re-entry guard + toolbar spinner for "Rebase worktrees"; a fourth mutually-exclusive long op (025 FR-013)
+let cloning = false; // re-entry guard + toolbar spinner for "Clone"; a fifth mutually-exclusive long op (027 FR-008)
 let failedPaths = new Set<string>(); // paths with result 'failed' from the last mutating run (FR-014)
 let warnings = new Map<string, UpdateReason>(); // warned-set reasons from the last mutating run (013 FR-001/004), in-memory only (FR-011)
 let loadState: LoadState = 'loading';
@@ -168,7 +173,7 @@ function pruneFixedFailedPaths(): void {
 }
 
 async function doRefresh(opts: { pruneFixedFailed?: boolean } = {}): Promise<void> {
-  if (refreshing || updating || cleaning || rebasing) return; // FR-002/SC-005: at most one long operation at a time
+  if (refreshing || updating || cleaning || rebasing || cloning) return; // FR-002/SC-005: at most one long operation at a time
   refreshing = true;
   beginBusyLock('Refreshing…');
   render();
@@ -184,7 +189,7 @@ async function doRefresh(opts: { pruneFixedFailed?: boolean } = {}): Promise<voi
 }
 
 async function doUpdateAll(): Promise<void> {
-  if (updating || cleaning || rebasing) return; // FR-012: mutually exclusive with the other long ops
+  if (updating || cleaning || rebasing || cloning) return; // FR-012: mutually exclusive with the other long ops
   updating = true;
   failedPaths = new Set();
   warnings = new Map();
@@ -212,7 +217,7 @@ async function doUpdateAll(): Promise<void> {
 
 /** Two-phase flow (contracts/ipc-cleanup.md): read-only scan -> review overlay -> remove selected. */
 async function doCleanup(): Promise<void> {
-  if (cleaning || updating || rebasing) return; // FR-012: mutually exclusive with the other long ops
+  if (cleaning || updating || rebasing || cloning) return; // FR-012: mutually exclusive with the other long ops
   cleaning = true;
   beginBusyLock('Cleaning up…');
   render();
@@ -254,7 +259,7 @@ async function doCleanup(): Promise<void> {
 /** Confirm-then-run flow (contracts/rebase-engine.md, 025 FR-016/017/018). Cancelling performs no
  *  fetch, no rebase, and no state change; ticking "do not remind me again" persists before running. */
 async function doRebaseWorktrees(): Promise<void> {
-  if (rebasing || updating || cleaning || refreshing) return; // FR-013: at most one long operation at a time
+  if (rebasing || updating || cleaning || refreshing || cloning) return; // FR-013: at most one long operation at a time
   if (!settings.rebaseReminderSuppressed) {
     const { proceed, suppress } = await api.confirmRebaseWorktrees();
     if (!proceed) return;
@@ -289,9 +294,77 @@ async function doRebaseWorktrees(): Promise<void> {
   await doRefresh();
 }
 
+/** Opens the modal unlocked (browsing/searching never blocks the app, like Settings) and kicks
+ *  off discovery in the background; T013/contracts §"Renderer flow". */
+function onClone(): void {
+  // Discovery is written to never reject (worst case searchAvailable:false); the .catch is a local
+  // belt-and-suspenders so the modal can never hang on "Loading…" if that invariant is ever broken.
+  const loadDiscovery = (forceRefresh?: boolean): void => {
+    setCloneLoading(); // show the spinner + inert search controls on both first open and "Refresh list"
+    render();
+    void api
+      .listCloneableRepos(forceRefresh)
+      .then((result) => setCloneDiscoveryResult(result))
+      .catch(() => setCloneDiscoveryResult({ searchAvailable: false, reason: 'Repository search failed.' }))
+      .finally(() => render());
+  };
+  openCloneModal(settings.observedDirectories, settings.lastCloneDirectory, {
+    onClone: (url, destination, destDir) => void doClone(url, destination, destDir),
+    onCancel: () => render(),
+    onRefreshList: () => loadDiscovery(true),
+    onBrowse: () => api.pickDirectory(),
+    onCheckDestination: (destination) => api.isCloneDestinationOccupied(destination),
+  });
+  loadDiscovery();
+}
+
+/** The one mutating step (FR-007/008): joins the long-op lockout as a fifth mutually-exclusive
+ *  member. On success the modal closes and settings/rows reload (the parent dir is now observed,
+ *  per data-model §6); on failure the modal stays open with the reason shown (FR-011). */
+async function doClone(url: string, destination: string, destDir: string): Promise<void> {
+  if (cloning || refreshing || updating || cleaning || rebasing) return; // FR-008: at most one long operation at a time
+  cloning = true;
+  clearCloneError(); // a retry shouldn't show the previous attempt's error text during "Cloning…"
+  beginBusyLock('Cloning…');
+  render();
+
+  let succeeded = false;
+  try {
+    const outcome = await api.cloneRepository(url, destination);
+    if (outcome.ok) {
+      succeeded = true;
+      closeCloneModal();
+      // A settings-write failure (disk full, read-only dir) MUST NOT forfeit the success notice or
+      // the refresh below — the repo is really on disk. Fold the persistence failure into one notice
+      // rather than throwing out of the success path (which would leave no toast and no new row).
+      let notice = `Cloned into ${destination}`;
+      try {
+        await api.setLastCloneDirectory(destDir);
+      } catch {
+        notice += ' (could not save the last-used directory)';
+      }
+      settings = await api.getSettings();
+      showNotice(notice);
+    } else {
+      setCloneError(outcome.reason);
+    }
+  } catch {
+    // cloneRepository is contracted never to reject (it resolves {ok:false} instead, FR-011). If that
+    // invariant is ever broken, still surface something rather than a silent unhandled rejection.
+    setCloneError('Clone failed unexpectedly.');
+  } finally {
+    // FR-013 precedent (release on any settlement): never leave the UI locked. `cloning` MUST be
+    // cleared before doRefresh() below, since doRefresh() itself refuses to run while cloning.
+    cloning = false;
+    endBusyLock();
+    render();
+  }
+  if (succeeded) await doRefresh(); // only on success (contracts/clone-engine.md Renderer flow) — 027 T027
+}
+
 function render(): void {
   // FR-001/015/016: drives filter-chip and row-action locking below (toolbar derives its own copy).
-  const busy = refreshing || updating || cleaning || rebasing;
+  const busy = refreshing || updating || cleaning || rebasing || cloning;
   const hasDirectories = settings.observedDirectories.length > 0;
   const hasWorktrees = rows.some((r) => r.kind === 'repository' && r.worktrees.length > 0); // FR-021
   const screen = decideStartupScreen(loadState, hasDirectories);
@@ -299,7 +372,7 @@ function render(): void {
 
   renderToolbar(
     els.toolbar,
-    { showWorktrees: settings.showWorktrees, refreshing, updating, cleaning, rebasing, hasRepos: rows.length > 0, hasWorktrees },
+    { showWorktrees: settings.showWorktrees, refreshing, updating, cleaning, rebasing, cloning, hasRepos: rows.length > 0, hasWorktrees },
     {
       onToggleWorktrees: (show) => {
         settings.showWorktrees = show;
@@ -310,6 +383,7 @@ function render(): void {
       onUpdateAll: () => void doUpdateAll(),
       onCleanup: () => void doCleanup(),
       onRebaseWorktrees: () => void doRebaseWorktrees(),
+      onClone,
       onOpenSettings: () => {
         openSettingsModal();
         render();
@@ -426,34 +500,47 @@ function render(): void {
     );
   }
 
-  renderSettingsModal(els.settingsModal, settings.observedDirectories, settings.actions, settings.rebaseReminderSuppressed, {
-    onAdd: (path) => api.addObservedDirectory(path),
-    onRemove: (path) => api.removeObservedDirectory(path),
-    onPick: () => api.pickDirectory(),
-    onModified: () => {
-      void (async () => {
-        settings = await api.getSettings();
-        await doRefresh();
-      })();
-    },
-    onClose: () => render(),
-    onSetActions: (actions) => api.setActions(actions),
-    onSetRebaseReminderSuppressed: (value) => {
-      settings.rebaseReminderSuppressed = value;
-      void api.setRebaseReminderSuppressed(value);
-      render();
-    },
-    onActionsChanged: () => {
-      // Actions changed — reload settings and re-render so the ⋮ menus and the list update (FR-008).
-      // No repo re-scan needed (the row data is unchanged).
-      void (async () => {
-        settings = await api.getSettings();
+  renderSettingsModal(
+    els.settingsModal,
+    settings.observedDirectories,
+    settings.actions,
+    settings.rebaseReminderSuppressed,
+    settings.excludedCloneOwners,
+    {
+      onAdd: (path) => api.addObservedDirectory(path),
+      onRemove: (path) => api.removeObservedDirectory(path),
+      onPick: () => api.pickDirectory(),
+      onModified: () => {
+        void (async () => {
+          settings = await api.getSettings();
+          await doRefresh();
+        })();
+      },
+      onClose: () => render(),
+      onSetActions: (actions) => api.setActions(actions),
+      onSetRebaseReminderSuppressed: (value) => {
+        settings.rebaseReminderSuppressed = value;
+        void api.setRebaseReminderSuppressed(value);
         render();
-      })();
+      },
+      onSetExcludedCloneOwners: async (owners) => {
+        settings.excludedCloneOwners = owners;
+        await api.setExcludedCloneOwners(owners);
+        render();
+      },
+      onActionsChanged: () => {
+        // Actions changed — reload settings and re-render so the ⋮ menus and the list update (FR-008).
+        // No repo re-scan needed (the row data is unchanged).
+        void (async () => {
+          settings = await api.getSettings();
+          render();
+        })();
+      },
     },
-  });
+  );
 
   renderCleanupOverlay(els.cleanupOverlay);
+  renderCloneModal(els.cloneModal, settings.observedDirectories, cloning, rows);
 
   els.footLeft.textContent = `Showing ${visible.length} of ${rows.length}`;
   els.footRight.textContent = `last refresh ${new Date().toLocaleTimeString()}`;
@@ -470,7 +557,7 @@ async function checkGitStatus(): Promise<void> {
 }
 
 wireSortHeaders(els.thead, (dimension) => {
-  if (refreshing || updating || cleaning || rebasing) return; // FR-014: sort is blocked while a long operation runs
+  if (refreshing || updating || cleaning || rebasing || cloning) return; // FR-014: sort is blocked while a long operation runs
   if (settings.sortDimension === dimension) {
     settings.sortDirection = settings.sortDirection === 'asc' ? 'desc' : 'asc';
   } else {

@@ -20,6 +20,8 @@ export interface SettingsModalHandlers {
   onActionsChanged: () => void;
   /** Persist the rebase-confirmation reminder toggle (025 FR-020). */
   onSetRebaseReminderSuppressed: (value: boolean) => void;
+  /** Persist the full excluded-owners list for Clone search (027). */
+  onSetExcludedCloneOwners: (owners: string[]) => Promise<void>;
 }
 
 let isOpen = false;
@@ -219,6 +221,7 @@ export function renderSettingsModal(
   directories: string[],
   actions: Action[],
   rebaseReminderSuppressed: boolean,
+  excludedCloneOwners: string[],
   handlers: SettingsModalHandlers,
 ): void {
   container.innerHTML = '';
@@ -361,6 +364,54 @@ export function renderSettingsModal(
   reminderRow.appendChild(reminderCb);
   reminderRow.appendChild(reminderLabel);
   otherSection.appendChild(reminderRow);
+
+  // --- Excluded clone organizations (027): owners hidden from Clone's search results ---
+  const excludedH = el('h2', 'settings-subhead');
+  excludedH.textContent = 'Clone: excluded organizations';
+  otherSection.appendChild(excludedH);
+  const excludedHint = el('div', 'section-hint');
+  excludedHint.textContent = 'Repositories owned by these accounts/orgs never appear in Clone search.';
+  otherSection.appendChild(excludedHint);
+
+  const excludedList = el('div', 'dir-list');
+  if (excludedCloneOwners.length === 0) {
+    const none = el('div', 'dir');
+    none.textContent = 'None excluded.';
+    excludedList.appendChild(none);
+  }
+  for (const owner of excludedCloneOwners) {
+    const row = el('div', 'dir');
+    const label = el('span', 'path');
+    label.textContent = owner;
+    const rm = el('span', 'rm');
+    rm.title = 'Remove';
+    rm.innerHTML = iconSvg('trash'); // bundled static SVG (no user input) — safe
+    rm.addEventListener('click', () =>
+      void handlers.onSetExcludedCloneOwners(excludedCloneOwners.filter((o) => o !== owner)),
+    );
+    row.appendChild(label);
+    row.appendChild(rm);
+    excludedList.appendChild(row);
+  }
+  otherSection.appendChild(excludedList);
+
+  const excludedFoot = el('div', 'dir-foot');
+  const excludedInput = el('input', 'action-name-input');
+  excludedInput.type = 'text';
+  excludedInput.placeholder = 'Organization or user login (e.g. m10s-archive)';
+  excludedInput.setAttribute('aria-label', 'Organization or user login to exclude');
+  const excludedAddBtn = el('button', 'btn');
+  excludedAddBtn.type = 'button';
+  excludedAddBtn.textContent = '+ Add';
+  excludedAddBtn.addEventListener('click', () => {
+    const owner = excludedInput.value.trim();
+    if (!owner || excludedCloneOwners.includes(owner)) return;
+    void handlers.onSetExcludedCloneOwners([...excludedCloneOwners, owner]);
+  });
+  excludedFoot.appendChild(excludedInput);
+  excludedFoot.appendChild(excludedAddBtn);
+  otherSection.appendChild(excludedFoot);
+
   modalBody.appendChild(otherSection);
   modal.appendChild(modalBody);
 
