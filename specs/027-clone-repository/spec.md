@@ -14,6 +14,9 @@
 
 - Q: When a clone lands in a directory that isn't already watched, which path should the app start watching so the new repo shows up? → A: Watch the clone's **parent** directory (the repo appears as a child; future siblings placed there also appear).
 - Q: What concrete cap on displayed search results applies when the accessible set is 1,000+ repos? → A: Top 50 ranked matches.
+- Q: When `gh` is installed but the user is signed in on no host, what should the dialog show? → A: A distinct, actionable message naming the cause (e.g. "GitHub CLI is installed but you're not signed in — run `gh auth login`"), separate from the "gh not found" message; URL clone still works.
+- Q: Does the app proactively verify git authentication before a clone? → A: No — rely on fail-loud; `git clone` runs with prompts disabled and any auth failure surfaces as a specific, shown reason (git auth can't be reliably checked without attempting a remote operation).
+- Q: Where/when are `gh`/`git` availability verified? → A: Lazily, when the Clone dialog opens (session-cached); not at app startup (git is already a hard startup requirement of the existing dashboard).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -132,7 +135,9 @@ re-entering the URL or search selection.
   their edit.
 - What happens when the user has no search data available at all (not signed
   in anywhere searchable)? The URL-based clone flow (User Story 2) MUST
-  remain fully usable.
+  remain fully usable, and — when the cause is that `gh` is installed but the
+  user is signed in on no host — the dialog MUST show the distinct, actionable
+  "not signed in" message (per FR-012), not the generic "gh not found" one.
 
 ## Requirements *(mandatory)*
 
@@ -174,7 +179,12 @@ re-entering the URL or search selection.
 - **FR-012**: When repository search data cannot be retrieved at all, the
   system MUST still allow cloning via a manually entered URL, and MUST
   clearly communicate that search is unavailable rather than showing an
-  empty, unexplained list.
+  empty, unexplained list. The message MUST name the cause and, where the
+  cause is user-fixable, be actionable — in particular, "the GitHub CLI is
+  installed but you are not signed in on any host" MUST be shown as a
+  distinct, actionable message (e.g. pointing the user to `gh auth login`),
+  **separate** from the "GitHub CLI not found" message, since the former is
+  trivially fixable by the user and the latter is not.
 - **FR-013**: When repository search data is available from only some of the
   user's configured accounts/hosts, the system MUST display the results that
   did load and indicate which source(s) were unavailable, rather than
@@ -182,7 +192,13 @@ re-entering the URL or search selection.
 - **FR-014**: The system MUST NOT store, manage, or prompt for the user's
   remote-hosting credentials itself; it MUST rely entirely on authentication
   already configured in the user's existing environment, consistent with how
-  the dashboard's other git operations already work.
+  the dashboard's other git operations already work. The system MUST NOT
+  proactively pre-check git authentication before a clone; instead it MUST
+  run the clone with interactive credential prompts disabled so that a
+  git-auth failure fails loud and is surfaced as a specific, shown reason
+  (per FR-011) rather than hanging on a prompt. (Rationale: git auth is
+  per-remote and cannot be reliably verified without attempting a remote
+  operation, which the clone itself already is.)
 
 ### Key Entities
 
@@ -221,6 +237,12 @@ re-entering the URL or search selection.
 - Repository search data may be fetched once per session rather than on
   every dialog open, since the accessible set changes infrequently during a
   single working session; a way to force a refresh of that data is in scope.
+- `gh`/`git` availability and `gh` authentication are verified lazily — when
+  the Clone dialog is opened (and the result is session-cached) — not at
+  application startup. `git` itself remains a hard startup requirement of the
+  existing dashboard; only the clone feature's `gh`-based discovery and its
+  availability messaging are gated on opening the dialog, so a session that
+  never clones incurs no startup cost or startup-time `gh` probe.
 - Clone always targets a destination that doesn't yet exist or is empty;
   merging a clone into an existing populated directory is out of scope.
 - When a repository can be cloned via more than one URL form, SSH is offered

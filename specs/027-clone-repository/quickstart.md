@@ -82,10 +82,16 @@ With two gh hosts configured, disconnect from one host's network (e.g. off-VPN f
 `github.schibsted.io`) and hit the modal's **Refresh list**. Results from the reachable
 host still appear; a dismissible note names the skipped host.
 
-### L — gh unavailable → manual URL only (FR-012)
-Temporarily rename/remove `gh` from PATH (or run with no gh auth), then open Clone. The
-search area shows a clear "search unavailable" reason instead of an empty list; the URL
-field and destination remain fully usable and a URL clone still works.
+### L1 — gh not found → manual URL only (FR-012)
+Temporarily rename/remove `gh` from PATH, then open Clone. The search area shows a clear
+"GitHub CLI (gh) not found on PATH" reason instead of an empty list; the URL field and
+destination remain fully usable and a URL clone still works.
+
+### L2 — gh present but not signed in → actionable message (FR-012)
+Restore `gh` to PATH but sign out of every host (`gh auth logout` on each, so
+`gh auth status` shows no success), then open Clone. The search area shows a **distinct,
+actionable** reason — "GitHub CLI is installed but not signed in — run `gh auth login` …" —
+**not** the "gh not found" text from L1. URL + destination remain fully usable.
 
 ## Constitution re-check (post-implementation)
 

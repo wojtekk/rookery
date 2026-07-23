@@ -143,6 +143,10 @@ unavailable, the modal shows a clear "search unavailable" reason but URL clone s
 - [X] T016 [US2] Handle `searchAvailable === false` in `src/renderer/view/clone.ts`: render
   the `reason` text in place of the dropdown (never a blank list), keeping URL + destination
   fully usable (FR-012). Confirm `renderer.ts` opens the modal even when discovery fails.
+  The `reason` MUST be shown verbatim as supplied by discovery, so the distinct, actionable
+  "gh installed but not signed in — run `gh auth login`" message (per FR-012 clarification /
+  contracts/clone-engine.md) reaches the user unaltered and separate from the "gh not found"
+  message.
 
 **Checkpoint**: URL-only clone works with search absent; gh-down degrades gracefully.
 
