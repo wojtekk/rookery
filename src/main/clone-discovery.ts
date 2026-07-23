@@ -89,7 +89,10 @@ export async function listCloneableRepos(forceRefresh = false): Promise<Cloneabl
   }
 
   if (hosts.length === 0) {
-    cached = { searchAvailable: false, reason: 'No authenticated GitHub CLI host found.' };
+    cached = {
+      searchAvailable: false,
+      reason: 'GitHub CLI is installed but not signed in — run "gh auth login" to enable repository search.',
+    };
     return cached;
   }
 

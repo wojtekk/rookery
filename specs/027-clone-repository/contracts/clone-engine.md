@@ -16,6 +16,12 @@ Read-only discovery. Registered with `ipcMain.handle('listCloneableRepos', …)`
 - MUST set `searchAvailable: false` with a human `reason` when no host can be queried
   at all (e.g. `gh` ENOENT, or every host errors) — and MUST NOT throw in that case
   (FR-012: the modal still opens for manual-URL clone).
+- The `reason` MUST name the cause and, when the cause is **`gh` installed but signed
+  in on no host** (`gh auth status` yields zero `state === "success"` hosts), MUST be
+  **actionable** — pointing the user to `gh auth login` — and MUST be a **distinct**
+  string from the `gh`-not-found-on-PATH case (which is not user-fixable in-app). The
+  four causes therefore map to four distinct reasons: not-found-on-PATH,
+  `gh auth status`-failed, not-signed-in (actionable), and no-host-reachable.
 - MUST set `searchAvailable: true` and populate `unavailableHosts` when ≥1 host
   succeeds and ≥1 other fails (FR-013).
 - MUST NOT read, log, or persist any token; it only invokes `gh` (Principle I/V).
