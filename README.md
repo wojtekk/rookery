@@ -1,223 +1,302 @@
 <img src="src/assets/icon.png" width="72" align="left">
 
-# Rookery - Local Git Organizer
+# Rookery — Local Git Organizer
 
 [![Test](https://github.com/wojtekk/rookery/actions/workflows/test.yml/badge.svg)](https://github.com/wojtekk/rookery/actions/workflows/test.yml)
 [![License](https://img.shields.io/badge/license-MIT%20%2B%20Commons%20Clause-blue)](LICENSE)
 [![Latest Release](https://img.shields.io/github/v/release/wojtekk/rookery)](https://github.com/wojtekk/rookery/releases/latest)
 
-A local, single-user Electron app for developers who work across many
-locally-cloned git repositories at once: it lists them and shows their state
-at a glance — branch, tracking, uncommitted changes, ahead/behind — without
-running `git status` in a terminal across every folder yourself.
+**Manage all your local git repositories from one window.** Rookery lists every
+repository across the folders you point it at, shows the state of each one at a
+glance — branch, tracking, uncommitted changes, ahead/behind — and lets you
+update, rebase, tidy, clone, and open them without a single `cd` or `git status`
+in a terminal.
 
 <br clear="left">
 
 ![Rookery](docs/assets/rookery-screen-1.png)
 
-It is **local-only by design**: it shells out to your already-installed system
-`git` (using your existing credentials) to inspect and act on repositories, and
-makes no network calls of its own. See
-[`.specify/memory/constitution.md`](.specify/memory/constitution.md) for the
-non-negotiable rules this project is built against.
+## Requirements
 
-Full requirements live in
-[`specs/001-repo-dashboard/spec.md`](specs/001-repo-dashboard/spec.md); the
-approved visual design is in
-[`specs/001-repo-dashboard/design/README.md`](specs/001-repo-dashboard/design/README.md)
-(with a static [interactive mockup](specs/001-repo-dashboard/design/dashboard-mockup.html)).
-[`idea-box.md`](idea-box.md) is the original brain-dump this feature grew from —
-several items there (pull, branch/worktree deletion, fetch-all, external-tool
-launchers) are deliberately out of scope for this feature and deferred to later
-ones.
+Rookery drives your **system `git`** (≥ 2.15) for everything it does — listing,
+pulling, rebasing, and cleaning up — so that must be installed and on your
+`PATH`.
+
+The **Clone** feature also leans on the [**GitHub CLI (`gh`)**](https://cli.github.com/)
+for its headline convenience: type-ahead search across every repository your
+GitHub accounts can reach. Rookery calls `gh` with its own existing login and
+never touches a token. Install it and run `gh auth login` once to unlock search;
+without `gh` you can still clone any repository by pasting its HTTPS/SSH URL.
+
+## Who it's for
+
+If you juggle a dozen checkouts — microservices, forks, client projects, a pile
+of side repos — you know the daily tax: which ones are behind, which have
+uncommitted work, which branch am I even on, which have dead `[gone]` branches
+piling up. Rookery answers all of that in one table and turns the routine
+maintenance into single clicks. **One button pulls every repository. One button
+rebases every worktree. One button cleans up the cruft.**
+
+## What it does
+
+### See every repository's state at a glance
+
+Point Rookery at one or more directories and it lists every repository inside
+them, colour-coded by state: clean, uncommitted changes, out of sync with the
+upstream, or unavailable. Linked worktrees appear grouped under their primary
+repository. **Search** narrows the list as you type (by slug, folder, remote
+URL, or branch); **filter chips** show only the repositories that need attention
+— uncommitted, out of sync, failed, gone-upstream, or local-only.
+
+Linked worktrees nest under the primary repository they belong to — the
+"family" that "Rebase worktrees" (below) operates on as a unit:
+
+```text
+📁 ~/Developer/projects/
+ ├── 📦 primary-app/ (Primary Repo — main)
+ │    ├── 🌿 feature/login (Linked Worktree)
+ │    └── 🌿 fix/auth-bug  (Linked Worktree)
+ │
+ └── 📦 payment-service/ (Primary Repo — main)
+      └── 🌿 feature/stripe-v2 (Linked Worktree)
+```
+
+### Update many repositories at once — "Pull all"
+
+**Pull all** brings every eligible repository and worktree up to date with its
+tracked upstream in one pass, and it is careful about your work:
+
+- Uncommitted changes are **autostashed** first and restored afterward, so a
+  dirty checkout never blocks the update.
+- A repository that only needs to move forward is **fast-forwarded**.
+- A repository with local commits *and* new upstream commits is **rebased**
+  non-interactively onto the upstream. A clean rebase replays your commits on
+  top; a rebase that would conflict is **aborted and the repository restored
+  exactly as it was** — Rookery never resolves a conflict for you or invents a
+  merge commit.
+
+Anything that can't be updated is reported, not swallowed: hover the warning
+icon on a row to see *why* — diverged, unreachable remote, stash failed, timed
+out, detached HEAD, and so on.
+
+```text
+                                    ┌──────────┐
+                                    │ Pull all │
+                                    └────┬─────┘
+                                         │
+                            [ Autostash dirty changes ]
+                                         │
+                                         ▼
+                                Compare to upstream
+                                         │
+               ┌─────────────────────────┼─────────────────────────┐
+               ▼                         ▼                         ▼
+          (Up to date)                (Behind)                 (Diverged)
+               │                    Fast-forward          Rebase onto upstream
+               │                         │                         │
+                                                         ┌─────────┴─────────┐
+               │                         │               ▼                   ▼
+               │                         │            (Clean)            (Conflict)
+               │                         │        Replayed on top       Abort rebase
+               │                         │               │          (restored as before)
+               │                         │               │                   │
+               └─────────────────────────┼───────────────┴───────────────────┘
+                                         │
+                               [ Restore autostash ]
+                                         │
+               ┌─────────────────────────┼─────────────────────────┐
+               ▼                         ▼                         ▼
+      ┌─────────────────┐           ┌─────────┐        ┌────────────────────────┐
+      │ Already current │           │ Updated │        │ Reported with a reason │
+      └─────────────────┘           └─────────┘        └────────────────────────┘
+```
+
+### Rebase every worktree onto the default branch — "Rebase worktrees"
+
+**Rebase worktrees** replays each linked worktree's branch onto its family's
+freshly-fetched default branch (`origin/main` or equivalent). This closes the
+gap Pull all leaves: feature-branch worktrees with no upstream, and worktrees
+that track their own branch rather than `main`. It reuses the same
+non-destructive spine — autostash, rebase, restore, and abort-and-restore on the
+first conflict — so nothing is lost and nothing is force-merged. Because it
+rewrites history, Rookery warns you once before the first run (with a
+"don't remind me again" option you can re-enable in Settings).
+
+```text
+                    ┌──────────────────┐
+                    │ Rebase worktrees │
+                    └────────┬─────────┘
+                             │
+             [ Fetch origin default branch ]
+                             │
+                  For each linked worktree
+                             │
+                  [ Autostash if dirty ]
+                             │
+                Rebase branch onto default
+                             │
+                   ┌─────────┴─────────┐
+                   ▼                   ▼
+                (Clean)            (Conflict)
+            Replayed on top       Abort rebase
+                   │                   │
+                   └─────────┬─────────┘
+                             │
+                  [ Restore autostash ]
+                             │
+                   ┌─────────┴─────────┐
+                   ▼                   ▼
+           ┌──────────────┐  ┌──────────────────────┐
+           │   Rebased    │  │ Reported with reason │
+           └──────────────┘  └──────────────────────┘
+```
+
+A repository with no linked worktree is skipped, and a failed `fetch` marks
+that family's worktrees as reported rather than rebasing them.
+
+### Clean up gone branches and stale worktrees — "Cleanup"
+
+**Cleanup** finds branches whose upstream is gone (merged-and-deleted pull
+requests) and worktrees that no longer belong, then removes them — but only
+after showing you a **review list of exactly what will be deleted**, per
+repository, for you to confirm. Nothing is removed without your say-so.
+
+```text
+  ┌─────────┐      ┌───────────────────┐      ┌───────────────────────────┐
+  │ Cleanup ├─────►│ Scan repositories ├─────►│ Find gone branches        │
+  └─────────┘      └───────────────────┘      │ + stale worktrees         │
+                                              └─────────────┬─────────────┘
+                                                            │
+                                                            ▼
+                                              ┌───────────────────────────┐
+                                              │ Review list you approve   │
+                                              └─────────────┬─────────────┘
+                                                            │
+                                           ┌────────────────┴────────────────┐
+                                           ▼                                 ▼
+                                       (Confirm)                         (Cancel)
+                                    ┌─────────────┐                 ┌────────────────┐
+                                    │   Deleted   │                 │ Nothing removed│
+                                    └─────────────┘                 └────────────────┘
+```
+
+### Open each repository in your preferred apps
+
+Every row has a **⋮ menu of launchers you configure**: open the repo in your
+editor, on its GitHub page, in Finder, in a terminal — whatever you use. Add,
+name, and icon your own actions in Settings; sensible defaults are seeded on
+first run. Commands run through your login shell with the repository's path and
+remote URL passed as **shell arguments, never spliced into the command text**,
+so a repository's own values can't be mistaken for commands:
+
+```text
+❌ Spliced into command text (vulnerable)
+┌──────────────────────────────────────────────────────────────────────────┐
+│ Command: code my-repo; rm -rf ~                                          │
+│ Result : Shell parses `;` and runs BOTH `code` AND the injected command  │
+└──────────────────────────────────────────────────────────────────────────┘
+
+✔ Passed as positional parameters (Rookery's method)
+┌──────────────────────────────────────────────────────────────────────────┐
+│ Template: code $1                                                        │
+│ Param   : $1 = "my-repo; rm -rf ~"  (literal string)                     │
+│ Result  : `;` is a plain character in the path name, NEVER run           │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+### Clone a new repository
+
+The header **Clone** action clones a remote onto disk. Start typing and it
+autocompletes across every repository you can access — discovered through the
+optional `gh` CLI using its own existing login (Rookery never handles a token) —
+or paste any HTTPS/SSH URL, which works even without `gh`. Choose a destination
+from your watched folders or browse to a new one; on success the new repo
+appears in the table right away.
+
+### Watch multiple directories, and drop the ones you don't want
+
+Manage the set of watched directories in Settings — add a folder of repos, or
+remove one you no longer care about. To hide a single repository from the table,
+delete its row (this removes only the row from Rookery's view; deleting a
+worktree runs the proper `git worktree remove`).
+
+Watched directories pair naturally with a **domain-driven workflow**: group your
+repositories into business domains (one watched folder each), keep `main`
+pristine and do all work in Git worktrees, and give each level its own
+`CLAUDE.md` so AI coding agents get exactly the context they need. Worktrees you
+create show up nested under their primary repo in the table. The full
+methodology, with directory layouts and ready-to-use `CLAUDE.md` templates, is in
+[`docs/workflow.md`](docs/workflow.md).
+
+## Local-only and safe by design
+
+Rookery makes **no network calls of its own**. It shells out to the system `git`
+you already have, using your existing credentials, and every background
+inspection is **read-only**. Nothing is uploaded, no telemetry is collected, and
+every action that changes your repositories is one you clicked. The
+non-negotiable rules the app is built against live in
+[`.specify/memory/constitution.md`](.specify/memory/constitution.md).
+
+The only traffic that ever leaves your machine is your own `git` reaching your
+remotes and the optional `gh` CLI reaching the GitHub API — each with *your*
+existing credentials, never anything Rookery originates:
+
+```text
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Your Machine — Rookery originates NO network traffic                        │
+│                                                                             │
+│   ┌──────┐         ┌─────────────────────────┐                              │
+│   │ You  ├────────►│   Rookery (Local UI)    │                              │
+│   └──────┘         └──┬────────────────────┬─┘                              │
+│                       │                    │                                │
+│    Read probes /      │                    │ Clone search (Optional)        │
+│    Pull / Rebase      ▼                    ▼                                │
+│                 ┌────────────┐         ┌────────┐                           │
+│                 │ System git │         │ gh CLI │                           │
+│                 └─────┬──────┘         └───┬────┘                           │
+│                       │                    │                                │
+│                       ▼                    │                                │
+│         ┌───────────────────────────┐      │                                │
+│         │ Watched repos & worktrees │      │                                │
+│         └─────────────┬─────────────┘      │                                │
+└───────────────────────┼────────────────────┼────────────────────────────────┘
+                        │                    │
+             Fetch/Pull │                    │ GitHub API
+       (Your SSH/HTTPS) │                    │ (Its own login/token)
+                        ▼                    ▼
+              ┌───────────────────┐  ┌────────────────┐
+              │    Git Remotes    │  │  GitHub Host   │
+              └───────────────────┘  └────────────────┘
+```
 
 ## Download
 
 Prebuilt macOS, Windows, and Linux builds are published on the
 [GitHub Releases page](https://github.com/wojtekk/rookery/releases/latest) for
-every tagged version. Builds are unsigned and unnotarized (see
-[Releasing it](#releasing-it)), so your OS will warn you the first time you
-open one:
+every tagged version. Builds are unsigned, so your OS warns you the first time
+you open one:
 
 - **macOS**: Gatekeeper blocks the `.dmg`'s app with "cannot verify developer."
-  Right-click (or Control-click) the app → **Open** → **Open** again in the
-  dialog. This is only needed the first time.
-- **Windows**: SmartScreen blocks the `.exe` installer with "Windows protected
-  your PC." Click **More info** → **Run anyway**.
+  Right-click (or Control-click) the app → **Open** → **Open** again. Only
+  needed the first time.
+- **Windows**: SmartScreen shows "Windows protected your PC." Click
+  **More info** → **Run anyway**.
 
-## Current status
+Requires system `git >= 2.15` on your `PATH`.
 
-The MVP (point the app at a directory, see every repo grouped with worktrees,
-sort and filter by state) is implemented. Managing observed directories from
-the UI and an on-demand refresh button are the next increments — see
-[`specs/001-repo-dashboard/tasks.md`](specs/001-repo-dashboard/tasks.md) for
-the full task breakdown and what's done vs. pending.
+## Build from source
 
-Until directory management ships, observed directories are configured by
-hand in the settings file (see [Running it locally](#running-it-locally)).
-
-### Custom action launchers (feature 002)
-
-Each repository row has a **⋮ menu of configurable launchers** — open the repo in
-your editor, on its GitHub page, in Finder or a terminal, etc. Actions are managed
-in Settings (icon + name + command) and seeded with sensible defaults on first run.
-A command is a template run through your login shell, with the row's path (`${1}`)
-and raw remote URL (`${2}`) passed as **shell positional parameters** — never spliced
-into the command text — so repository values can't be interpreted as commands
-(Constitution v1.4.0). See
-[`specs/002-custom-action-launchers/`](specs/002-custom-action-launchers/).
-
-### Clone (feature 027)
-
-The header **Clone** action opens a dialog to clone a remote repository onto disk.
-Search autocompletes across every repository you can access — discovered via the
-optional system **`gh` CLI** (using its own existing authentication; the app never
-handles a token) — or you can paste an HTTPS/SSH URL directly, which always works
-even without `gh` installed. Pick a destination from your watched directories or
-browse to a new one; on success the new repo's parent directory starts being
-watched automatically so it shows up right away. See
-[`specs/027-clone-repository/`](specs/027-clone-repository/).
-
-## Top-level architecture
-
-Standard Electron three-context split, plus a `shared/` module for the types
-that cross the IPC boundary:
-
-```text
-src/
-├── shared/
-│   └── types.ts        # Row, Repository, WorkingTree(Entry), Head, Remote, Settings, RowState
-├── main/                # Node context — the only place that touches git or the filesystem
-│   ├── main.ts          # BrowserWindow, IPC handlers
-│   ├── config.ts        # settings.json load/save (atomic write) in Electron's userData dir
-│   ├── scan.ts          # walks observed dirs (1 level), bounded-concurrency + per-family timeout
-│   └── git/
-│       ├── probe.ts     # shells out to system git (--no-optional-locks, read-only)
-│       ├── parse.ts     # pure: porcelain v2 / worktree-list / remote-url parsing
-│       └── identity.ts  # pure: canonical identity, dedup, primary/worktree family grouping
-├── preload/
-│   └── preload.ts       # contextBridge: exposes a typed API as window.repoDashboard
-└── renderer/             # Chromium context — no Node access, no filesystem, no git
-    ├── renderer.ts       # bootstrap; owns view state (sort, state filter, worktree toggle)
-    ├── index.html / styles.css
-    └── view/
-        ├── sort.ts       # pure: sort dimensions + deterministic tie-break
-        ├── filter.ts     # pure: RowState derivation + state/worktree filtering
-        ├── table.ts      # renders rows (state indicator, branch/tracking, counts, tooltip)
-        ├── summary.ts    # fleet composition bar + state-filter chips
-        └── toolbar.ts    # command bar controls
-```
-
-**Why it's split this way**: `contextIsolation: true`, `nodeIntegration: false`,
-`sandbox: true` — the renderer can only reach the system through the typed
-`window.repoDashboard` API in `preload.ts` (contract:
-[`specs/001-repo-dashboard/contracts/ipc-api.md`](specs/001-repo-dashboard/contracts/ipc-api.md)).
-All git/filesystem work lives in `main/`. Within `main/git/`, the actual
-subprocess calls (`probe.ts`) are kept separate from the pure parsing
-(`parse.ts`) and identity/grouping logic (`identity.ts`) — same for
-`renderer/view/sort.ts` and `filter.ts` — so the core logic is unit-testable
-with `node:test` without spinning up Electron at all (see `tests/`).
-
-Data flow for a refresh: `renderer.ts` calls `refresh()` over IPC → `scan.ts`
-walks the observed directories and probes each working tree
-(`git/probe.ts` → `git/parse.ts` → `git/identity.ts`, exact commands documented in
-[`contracts/git-probe.md`](specs/001-repo-dashboard/contracts/git-probe.md)) → the
-resulting `Row[]` snapshot returns to the renderer, which sorts
-(`view/sort.ts`), filters (`view/filter.ts`), and renders (`view/table.ts`,
-`view/summary.ts`) it — all client-side, so switching sort/filter never
-re-probes git.
-
-## Running it locally
-
-```bash
-pnpm install          # Electron + TypeScript only; no runtime deps beyond Electron
-pnpm run build        # tsc (main/preload/renderer, two separate module targets) + copy static assets
-pnpm start            # build, then launch Electron
-pnpm test             # build, then run node:test over the pure-logic modules + read-only probe assertion
-```
-
-Requires system `git >= 2.15` on `PATH` (needed for `--no-optional-locks`).
-
-Until the directory-management UI exists, seed the observed directories by
-creating the settings file the app reads on launch:
-
-```jsonc
-// macOS: ~/Library/Application Support/git-manager/settings.json
-{
-  "observedDirectories": ["/absolute/path/to/a/folder/of/repos"],
-  "sortDimension": "slug",
-  "sortDirection": "asc",
-  "showWorktrees": true,
-  "defaultHost": "github.com"
-}
-```
-
-## Contributing
-
-This project is developed with GitHub's [Spec Kit](https://github.com/github/spec-kit)
-workflow — every feature has a spec, a plan, and a task breakdown before code
-is written. Contributions are expected to follow the same process rather than
-landing as an unplanned pull request:
-
-1. `specs/<NNN-feature-name>/` holds `spec.md` (requirements), `plan.md`
-   (architecture/tech decisions), `tasks.md` (the checklist), and supporting
-   docs (`data-model.md`, `contracts/`, `research.md`, `quickstart.md`).
-2. Work happens in a git worktree under `.worktrees/`, never on `main`
-   directly — `main` stays clean and checked out at all times.
-3. [`.specify/memory/constitution.md`](.specify/memory/constitution.md) is
-   non-negotiable: system git only (no bundled git/credentials), read-only
-   background activity, no silent conflict resolution, always-observable
-   state, local-only with no telemetry. Any change touching a mutating
-   operation, background behavior, or network activity must be checked
-   against it.
-4. Pure logic (parsing, identity/grouping, sort, filter) stays
-   dependency-free and gets a `node:test` in `tests/`; a change to a
-   mutating or safety-relevant code path should leave at least one runnable
-   check that fails if the guard breaks.
-5. Keep diffs surgical — match existing style, don't refactor adjacent code
-   you didn't need to touch, and don't add a dependency where a few lines of
-   platform/stdlib code will do.
-
-Before opening a change: `pnpm run build && pnpm test` must pass, and if it
-touches the UI, exercise it against a real directory of repos (there's no
-automated UI test suite by design — `quickstart.md` in each feature's spec
-folder has the manual validation scenarios).
-
-For a large change, open an issue first to agree on the approach before
-writing code — small fixes can go straight to a pull request. Every push and
-pull request runs the test suite automatically (see the Test badge above);
-a pull request should have a green check before it's considered for merge.
+Rookery builds with `pnpm` and Node.js 24 (`nvm use`). For the exact
+commands plus the architecture, contributing guidelines, and release
+process, see [`docs/development.md`](docs/development.md).
 
 ## License
 
 Rookery is licensed under the **MIT License, modified by the Commons Clause
-License Condition 1.0** — see [`LICENSE`](LICENSE) for the full text. In
-plain language: anyone, including businesses, is free to use, run, modify,
-and contribute to the project; what's **not** permitted is selling the
-software itself, or offering a product or service whose value comes
-substantially from it, for a fee. This makes Rookery **source-available**
-rather than an OSI-approved open-source license — the sales restriction is
-exactly what the Open Source Definition disallows.
-
-## Releasing it
-
-Pushing a `v<major>.<minor>.<patch>` tag (e.g. `v1.2.0`) triggers
-[`.github/workflows/release.yml`](.github/workflows/release.yml): it builds
-unsigned macOS, Windows, and Linux artifacts with
-[`electron-builder`](https://www.electron.build/) in parallel, and only if
-**all three** platforms succeed does it publish a single GitHub Release for
-that tag with all three attached (`rookery-<version>.dmg`,
-`rookery-<version>-setup.exe`, `rookery-<version>.AppImage`) — if any
-platform fails, no release is created or updated. Re-pushing the same tag
-replaces that release's assets rather than duplicating them.
-
-To cut a release, run one command from `main`:
-
-```bash
-pnpm version 1.2.0        # or: patch / minor / major / prerelease --preid=alpha
-```
-
-This runs the test suite first and aborts if it fails (`preversion`), then
-bumps `package.json`, commits (`vX.Y.Z`), tags, and pushes both the commit
-and the tag (`postversion`) — which is what actually triggers the workflow
-above.
+License Condition 1.0** — see [`LICENSE`](LICENSE) for the full text. In plain
+language: anyone, including businesses, is free to use, run, modify, and
+contribute to the project; what's **not** permitted is selling the software
+itself, or a product or service whose value comes substantially from it, for a
+fee. This makes Rookery **source-available** rather than OSI-approved open
+source — the sales restriction is exactly what the Open Source Definition
+disallows.
